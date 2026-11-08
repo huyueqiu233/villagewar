@@ -37,6 +37,10 @@ public final class GrowthStore {
         public int lastX;
         public int lastZ;
         public String dimension = "";
+        /** 上次有玩家在附近的时间（毫秒）；离屏模拟用它算补多少成长点。 */
+        public long lastSeenAt;
+        /** 上次看到的村民数，离屏时按这个估算产出。 */
+        public int population;
     }
 
     public static Entry get(String key) {

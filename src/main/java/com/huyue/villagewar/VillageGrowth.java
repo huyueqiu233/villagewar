@@ -90,7 +90,37 @@ public final class VillageGrowth {
                 growAround(level, player);
             }
         }
+        simulateRemote(System.currentTimeMillis());
         GrowthStore.saveIfDirty(server);
+    }
+
+    /**
+     * 离屏增长：玩家不在旁边时，记住的村子按上次看到的村民数继续攒点。
+     *
+     * <p>这就是设计里「离屏抽象模拟」的第一版：不加载区块、不跑实体，
+     * 只按时间推移数字；等玩家走回来，growAround 再把积压的房子实体化。</p>
+     */
+    private static void simulateRemote(long now) {
+        for (GrowthStore.Entry entry : GrowthStore.all().values()) {
+            if (entry.lastSeenAt <= 0) {
+                entry.lastSeenAt = now;
+                continue;
+            }
+            long elapsed = now - entry.lastSeenAt;
+            if (elapsed < 30_000L) {
+                continue; // 玩家还在附近，交给 growAround 实时算
+            }
+            int steps = (int) Math.min(360, elapsed / 10_000L); // 离线时每 10 秒算一步
+            if (steps <= 0) {
+                continue;
+            }
+            int pop = Math.min(20, Math.max(MIN_VILLAGERS, entry.population));
+            int gain = steps * Math.max(1, pop / 2);
+            // 积压上限：6 座房子，免得放置久了回来一口气刷出一片
+            entry.points = Math.min(GROWTH_COST * 6, entry.points + gain);
+            entry.lastSeenAt = now;
+            GrowthStore.markDirty();
+        }
     }
 
     private static void growAround(ServerLevel level, ServerPlayer player) {
@@ -114,14 +144,17 @@ public final class VillageGrowth {
         entry.lastX = center.getX();
         entry.lastZ = center.getZ();
         entry.dimension = level.dimension().location().toString();
-        entry.points += Math.max(1, villagers.size() / 2);
+        entry.lastSeenAt = System.currentTimeMillis();
+        entry.population = villagers.size();
+        entry.points = Math.min(GROWTH_COST * 6, entry.points + Math.max(1, villagers.size() / 2));
         GrowthStore.markDirty();
 
-        if (entry.points < GROWTH_COST) {
-            return;
-        }
-        String built = tryBuild(level, center, entry.houses);
-        if (built != null) {
+        // 一次最多实体化 2 座，把离屏攒下的积压慢慢放出来
+        for (int i = 0; i < 2 && entry.points >= GROWTH_COST; i++) {
+            String built = tryBuild(level, center, entry.houses);
+            if (built == null) {
+                break;
+            }
             entry.points -= GROWTH_COST;
             entry.houses++;
             GrowthStore.markDirty();
