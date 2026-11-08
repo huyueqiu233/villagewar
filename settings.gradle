@@ -1,0 +1,15 @@
+pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+        // 官方源 maven.neoforged.net 在本机网络不可达（IPv4/IPv6 都超时），走 BMCLAPI 镜像
+        maven { url = 'https://bmclapi2.bangbang93.com/maven' }
+        mavenCentral()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'villagewar'
