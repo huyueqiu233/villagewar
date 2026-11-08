@@ -10,6 +10,8 @@ import net.minecraft.world.level.storage.LevelResource;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -41,6 +43,12 @@ public final class GrowthStore {
         public long lastSeenAt;
         /** 上次看到的村民数，离屏时按这个估算产出。 */
         public int population;
+        /** 已建建筑的位置（x,y,z），袭击时从这里挑东西破坏。 */
+        public List<int[]> buildings = new ArrayList<>();
+        /** 下次袭击时间（毫秒）；0 表示还没排过。 */
+        public long nextRaidAt;
+        /** 被袭击过几次。 */
+        public int raids;
     }
 
     public static Entry get(String key) {

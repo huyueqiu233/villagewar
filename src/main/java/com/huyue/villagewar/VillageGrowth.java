@@ -1,6 +1,8 @@
 package com.huyue.villagewar;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 
@@ -15,6 +17,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BedBlock;
@@ -151,7 +155,7 @@ public final class VillageGrowth {
 
         // 一次最多实体化 2 座，把离屏攒下的积压慢慢放出来
         for (int i = 0; i < 2 && entry.points >= GROWTH_COST; i++) {
-            String built = tryBuild(level, center, entry.houses);
+            String built = tryBuild(level, center, entry);
             if (built == null) {
                 break;
             }
@@ -161,6 +165,8 @@ public final class VillageGrowth {
             LOGGER.info("[villagewar] {} 在 {} 建了{}（第 {} 个）", key, center, built, entry.houses);
             announce(level, center, built, entry.houses);
         }
+
+        raidTick(level, center, key, entry);
     }
 
     /** 村子按「维度 + 所在区块」归并，避免玩家走两步就多出一个新村。 */
@@ -169,19 +175,112 @@ public final class VillageGrowth {
     }
 
     private static void announce(ServerLevel level, BlockPos center, String what, int houses) {
-        Component message = Component.literal("附近村子新添了" + what + "（第 " + houses + " 座）");
+        notify(level, center, "附近村子新添了" + what + "（第 " + houses + " 座）");
+        level.playSound(null, center, SoundEvents.PLAYER_LEVELUP, SoundSource.BLOCKS, 0.6F, 1.4F);
+    }
+
+    private static void notify(ServerLevel level, BlockPos center, String text) {
+        Component message = Component.literal(text);
         for (ServerPlayer nearby : level.players()) {
             if (nearby.distanceToSqr(center.getX(), center.getY(), center.getZ()) < 96.0 * 96.0) {
                 nearby.displayClientMessage(message, false);
             }
         }
-        level.playSound(null, center, SoundEvents.PLAYER_LEVELUP, SoundSource.BLOCKS, 0.6F, 1.4F);
+    }
+
+    // ── 掠夺者袭击（M2）──────────────────────────────────────────────────────
+
+    /** 村子第一次被排上袭击的延迟；之后每 20~40 分钟一场。 */
+    private static final long RAID_FIRST_DELAY_MS = 10 * 60 * 1000L;
+    private static final long RAID_INTERVAL_MIN_MS = 20 * 60 * 1000L;
+    private static final long RAID_INTERVAL_MAX_MS = 40 * 60 * 1000L;
+    private static final long RAID_DURATION_MS = 3 * 60 * 1000L;
+
+    /** key -> 这场袭击的结束时间。临时状态，重启就散，不影响存档。 */
+    private static final Map<String, Long> ACTIVE_RAIDS = new HashMap<>();
+
+    private static void raidTick(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry) {
+        long now = System.currentTimeMillis();
+        Long endAt = ACTIVE_RAIDS.get(key);
+        if (endAt != null) {
+            if (now >= endAt) {
+                ACTIVE_RAIDS.remove(key);
+                notify(level, center, "袭击结束了，村子还站着");
+                LOGGER.info("[villagewar] 袭击结束 {}", key);
+            } else if (level.getRandom().nextInt(4) == 0) {
+                damageBuilding(level, entry);
+            }
+            return;
+        }
+        if (entry.houses < 2) {
+            return; // 村子还太小，先不招贼
+        }
+        if (entry.nextRaidAt <= 0) {
+            entry.nextRaidAt = now + RAID_FIRST_DELAY_MS;
+            GrowthStore.markDirty();
+            return;
+        }
+        if (now < entry.nextRaidAt) {
+            return;
+        }
+        startRaid(level, center, key, entry);
+    }
+
+    private static void startRaid(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry) {
+        RandomSource random = level.getRandom();
+        int pillagers = 3 + random.nextInt(3);
+        for (int i = 0; i < pillagers; i++) {
+            spawnAt(level, center, EntityType.PILLAGER, 22 + random.nextInt(6));
+        }
+        spawnAt(level, center, EntityType.VINDICATOR, 22 + random.nextInt(6));
+        // 村子自己武装：房子够多就出铁傀儡
+        int golems = Math.min(2, entry.houses / 2);
+        for (int i = 0; i < golems; i++) {
+            spawnAt(level, center, EntityType.IRON_GOLEM, 8 + random.nextInt(6));
+        }
+        entry.raids++;
+        entry.nextRaidAt = System.currentTimeMillis() + RAID_INTERVAL_MIN_MS
+                + random.nextInt((int) (RAID_INTERVAL_MAX_MS - RAID_INTERVAL_MIN_MS));
+        ACTIVE_RAIDS.put(key, System.currentTimeMillis() + RAID_DURATION_MS);
+        GrowthStore.markDirty();
+        notify(level, center, "掠夺者来袭！");
+        LOGGER.info("[villagewar] 袭击开始 {}（第 {} 次，{} 个掠夺者 + {} 个铁傀儡）", key, entry.raids, pillagers, golems);
+    }
+
+    private static void spawnAt(ServerLevel level, BlockPos center, EntityType<?> type, int radius) {
+        double angle = level.getRandom().nextDouble() * Math.PI * 2.0;
+        int x = center.getX() + (int) Math.round(Math.cos(angle) * radius);
+        int z = center.getZ() + (int) Math.round(Math.sin(angle) * radius);
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        Entity entity = type.create(level);
+        if (entity == null) {
+            return;
+        }
+        entity.moveTo(x + 0.5, y, z + 0.5, level.getRandom().nextFloat() * 360.0F, 0.0F);
+        level.addFreshEntity(entity);
+    }
+
+    /** 袭击期间隔一会儿拆几块墙，制造「打坏了」的痕迹。 */
+    private static void damageBuilding(ServerLevel level, GrowthStore.Entry entry) {
+        if (entry.buildings.isEmpty()) {
+            return;
+        }
+        int[] b = entry.buildings.get(level.getRandom().nextInt(entry.buildings.size()));
+        BlockPos base = new BlockPos(b[0], b[1], b[2]);
+        RandomSource random = level.getRandom();
+        for (int i = 0; i < 3; i++) {
+            BlockPos p = base.offset(random.nextInt(5) - 2, random.nextInt(3), random.nextInt(5) - 2);
+            BlockState state = level.getBlockState(p);
+            if (!state.isAir() && !state.is(Blocks.BEDROCK)) {
+                level.setBlockAndUpdate(p, Blocks.AIR.defaultBlockState());
+            }
+        }
     }
 
     // ── 建造 ────────────────────────────────────────────────────────────────
 
-    private static String tryBuild(ServerLevel level, BlockPos center, int houses) {
-        int base = (houses + level.getRandom().nextInt(2)) % 3;
+    private static String tryBuild(ServerLevel level, BlockPos center, GrowthStore.Entry entry) {
+        int base = (entry.houses + level.getRandom().nextInt(2)) % 3;
         for (int i = 0; i < 3; i++) {
             int type = (base + i) % 3;
             BlockPos spot = findSpot(level, center, type);
@@ -191,6 +290,7 @@ public final class VillageGrowth {
             switch (type) {
                 case 0 -> {
                     placeHut(level, spot);
+                    entry.buildings.add(new int[]{spot.getX(), spot.getY(), spot.getZ()});
                     return "一间小屋";
                 }
                 case 1 -> {
@@ -199,6 +299,7 @@ public final class VillageGrowth {
                 }
                 default -> {
                     placeLongHouse(level, spot);
+                    entry.buildings.add(new int[]{spot.getX(), spot.getY(), spot.getZ()});
                     return "一座长屋";
                 }
             }
