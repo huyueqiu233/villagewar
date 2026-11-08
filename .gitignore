@@ -24,3 +24,5 @@ runs
 run-data
 
 repo
+# 本地构建日志
+build.log
