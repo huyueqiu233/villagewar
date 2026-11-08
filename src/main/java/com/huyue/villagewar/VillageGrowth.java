@@ -177,26 +177,28 @@ public final class VillageGrowth {
         int halfW = type == 2 ? 3 : (type == 1 ? 3 : 2);
         int halfD = type == 2 ? 3 : 2;
         RandomSource random = level.getRandom();
-        for (int attempt = 0; attempt < 40; attempt++) {
-            // 离村子中心至少 12 格：别插在原版村庄的房子中间
-            int dx = random.nextInt(33) - 16;
-            int dz = random.nextInt(33) - 16;
-            if (Math.abs(dx) < 12 && Math.abs(dz) < 12) {
+        for (int attempt = 0; attempt < 90; attempt++) {
+            // 离村子中心至少 10 格：别插在原版村庄的房子中间
+            int dx = random.nextInt(37) - 18;
+            int dz = random.nextInt(37) - 18;
+            if (Math.abs(dx) < 10 && Math.abs(dz) < 10) {
                 continue;
             }
             int x = center.getX() + dx;
             int z = center.getZ() + dz;
             int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
             BlockPos base = new BlockPos(x, y, z);
-            if (areaIsClear(level, base, halfW, halfD)) {
+            // 先试宽松的 2 格净空，实在放不下就退回 1 格（村子很密时不至于一直卡住）
+            int margin = attempt < 60 ? 2 : 1;
+            if (areaIsClear(level, base, halfW, halfD, margin)) {
                 return base;
             }
         }
         return null;
     }
 
-    /** 地基范围：脚下实心、上面 4 层是空气；外圈再留 2 格净空，别贴着别的建筑。 */
-    private static boolean areaIsClear(Level level, BlockPos base, int halfW, int halfD) {
+    /** 地基范围：脚下实心、上面 4 层是空气；外圈留 margin 格净空，别贴着别的建筑。 */
+    private static boolean areaIsClear(Level level, BlockPos base, int halfW, int halfD, int margin) {
         for (int dx = -halfW; dx <= halfW; dx++) {
             for (int dz = -halfD; dz <= halfD; dz++) {
                 if (!level.getBlockState(base.offset(dx, -1, dz)).canOcclude()) {
@@ -209,9 +211,12 @@ public final class VillageGrowth {
                 }
             }
         }
-        // 外圈 2 格净空（只看空中，不看地面高度）
-        for (int dx = -halfW - 2; dx <= halfW + 2; dx++) {
-            for (int dz = -halfD - 2; dz <= halfD + 2; dz++) {
+        if (margin <= 0) {
+            return true;
+        }
+        // 外圈只看空中，不看地面高度
+        for (int dx = -halfW - margin; dx <= halfW + margin; dx++) {
+            for (int dz = -halfD - margin; dz <= halfD + margin; dz++) {
                 if (Math.abs(dx) <= halfW && Math.abs(dz) <= halfD) {
                     continue;
                 }
@@ -273,10 +278,9 @@ public final class VillageGrowth {
         placeDoor(level, base.offset(0, 0, 2), Direction.SOUTH);
         placeBed(level, base.offset(-1, 0, 1), Direction.NORTH);
 
-        // 随机工作方块；灯笼挂屋顶下，别压在工作和床的位置上（会挡住村民认领）
-        BlockPos station = base.offset(1, 0, -1);
-        level.setBlockAndUpdate(station, randomWorkstation(level.getRandom()));
-        level.setBlockAndUpdate(base.offset(1, 0, 1), Blocks.BARREL.defaultBlockState());
+        // 工作台 + 随机工作方块各一个；灯笼挂屋顶下，别压在工作方块和床上
+        level.setBlockAndUpdate(base.offset(1, 0, -1), Blocks.CRAFTING_TABLE.defaultBlockState());
+        level.setBlockAndUpdate(base.offset(1, 0, 1), randomWorkstation(level.getRandom()));
         placeHangingLantern(level, base.offset(0, 2, 0));
 
         placeOutdoorTorches(level, base, 3);
