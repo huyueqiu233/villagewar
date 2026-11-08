@@ -19,7 +19,12 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.monster.Pillager;
+import net.minecraft.world.entity.monster.Vindicator;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -230,9 +235,9 @@ public final class VillageGrowth {
         RandomSource random = level.getRandom();
         int pillagers = 3 + random.nextInt(3);
         for (int i = 0; i < pillagers; i++) {
-            spawnAt(level, center, EntityType.PILLAGER, 22 + random.nextInt(6));
+            equipSpawned(spawnAt(level, center, EntityType.PILLAGER, 22 + random.nextInt(6)));
         }
-        spawnAt(level, center, EntityType.VINDICATOR, 22 + random.nextInt(6));
+        equipSpawned(spawnAt(level, center, EntityType.VINDICATOR, 22 + random.nextInt(6)));
         // 村子自己武装：房子够多就出铁傀儡
         int golems = Math.min(2, entry.houses / 2);
         for (int i = 0; i < golems; i++) {
@@ -247,17 +252,29 @@ public final class VillageGrowth {
         LOGGER.info("[villagewar] 袭击开始 {}（第 {} 次，{} 个掠夺者 + {} 个铁傀儡）", key, entry.raids, pillagers, golems);
     }
 
-    private static void spawnAt(ServerLevel level, BlockPos center, EntityType<?> type, int radius) {
+    private static Entity spawnAt(ServerLevel level, BlockPos center, EntityType<?> type, int radius) {
         double angle = level.getRandom().nextDouble() * Math.PI * 2.0;
         int x = center.getX() + (int) Math.round(Math.cos(angle) * radius);
         int z = center.getZ() + (int) Math.round(Math.sin(angle) * radius);
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         Entity entity = type.create(level);
         if (entity == null) {
-            return;
+            return null;
         }
         entity.moveTo(x + 0.5, y, z + 0.5, level.getRandom().nextFloat() * 360.0F, 0.0F);
         level.addFreshEntity(entity);
+        return entity;
+    }
+
+    /** 手动生成的怪不会自带装备，这里补上。 */
+    private static void equipSpawned(Entity entity) {
+        if (entity instanceof Pillager pillager) {
+            pillager.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.CROSSBOW));
+            pillager.setDropChance(EquipmentSlot.MAINHAND, 0.0F);
+        } else if (entity instanceof Vindicator vindicator) {
+            vindicator.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
+            vindicator.setDropChance(EquipmentSlot.MAINHAND, 0.0F);
+        }
     }
 
     /** 袭击期间隔一会儿拆几块墙，制造「打坏了」的痕迹。 */
