@@ -22,6 +22,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.LanternBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
@@ -177,9 +178,10 @@ public final class VillageGrowth {
         int halfD = type == 2 ? 3 : 2;
         RandomSource random = level.getRandom();
         for (int attempt = 0; attempt < 40; attempt++) {
-            int dx = random.nextInt(45) - 22;
-            int dz = random.nextInt(45) - 22;
-            if (Math.abs(dx) < halfW + 2 && Math.abs(dz) < halfD + 2) {
+            // 离村子中心至少 12 格：别插在原版村庄的房子中间
+            int dx = random.nextInt(33) - 16;
+            int dz = random.nextInt(33) - 16;
+            if (Math.abs(dx) < 12 && Math.abs(dz) < 12) {
                 continue;
             }
             int x = center.getX() + dx;
@@ -193,12 +195,25 @@ public final class VillageGrowth {
         return null;
     }
 
-    /** 地基范围：脚下必须是实心方块，上面 4 层必须是空气。 */
+    /** 地基范围：脚下实心、上面 4 层是空气；外圈再留 2 格净空，别贴着别的建筑。 */
     private static boolean areaIsClear(Level level, BlockPos base, int halfW, int halfD) {
         for (int dx = -halfW; dx <= halfW; dx++) {
             for (int dz = -halfD; dz <= halfD; dz++) {
                 if (!level.getBlockState(base.offset(dx, -1, dz)).canOcclude()) {
                     return false;
+                }
+                for (int dy = 0; dy <= 3; dy++) {
+                    if (!level.getBlockState(base.offset(dx, dy, dz)).isAir()) {
+                        return false;
+                    }
+                }
+            }
+        }
+        // 外圈 2 格净空（只看空中，不看地面高度）
+        for (int dx = -halfW - 2; dx <= halfW + 2; dx++) {
+            for (int dz = -halfD - 2; dz <= halfD + 2; dz++) {
+                if (Math.abs(dx) <= halfW && Math.abs(dz) <= halfD) {
+                    continue;
                 }
                 for (int dy = 0; dy <= 3; dy++) {
                     if (!level.getBlockState(base.offset(dx, dy, dz)).isAir()) {
@@ -258,11 +273,11 @@ public final class VillageGrowth {
         placeDoor(level, base.offset(0, 0, 2), Direction.SOUTH);
         placeBed(level, base.offset(-1, 0, 1), Direction.NORTH);
 
-        // 随机工作方块 + 灯笼（灯放在工作方块上，不悬空）
+        // 随机工作方块；灯笼挂屋顶下，别压在工作和床的位置上（会挡住村民认领）
         BlockPos station = base.offset(1, 0, -1);
         level.setBlockAndUpdate(station, randomWorkstation(level.getRandom()));
-        level.setBlockAndUpdate(station.above(), Blocks.LANTERN.defaultBlockState());
         level.setBlockAndUpdate(base.offset(1, 0, 1), Blocks.BARREL.defaultBlockState());
+        placeHangingLantern(level, base.offset(0, 2, 0));
 
         placeOutdoorTorches(level, base, 3);
     }
@@ -326,7 +341,8 @@ public final class VillageGrowth {
         BlockPos stationB = base.offset(1, 0, -1);
         level.setBlockAndUpdate(stationA, randomWorkstation(level.getRandom()));
         level.setBlockAndUpdate(stationB, randomWorkstation(level.getRandom()));
-        level.setBlockAndUpdate(stationA.above(), Blocks.LANTERN.defaultBlockState());
+        placeHangingLantern(level, base.offset(-1, 2, 1));
+        placeHangingLantern(level, base.offset(1, 2, 1));
 
         placeOutdoorTorches(level, base, 4);
     }
@@ -344,11 +360,19 @@ public final class VillageGrowth {
                 }
             }
         }
-        // 堆肥桶 + 灯笼（灯压在堆肥桶上，不悬空）
+        // 堆肥桶留给村民认领；灯改挂在四角的栅栏上，不占用工作方块上方
         level.setBlockAndUpdate(base.offset(-3, -1, -3), Blocks.COMPOSTER.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(-3, 0, -3), Blocks.LANTERN.defaultBlockState());
         level.setBlockAndUpdate(base.offset(3, -1, 3), Blocks.COMPOSTER.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(3, 0, 3), Blocks.LANTERN.defaultBlockState());
+        for (int sx = -1; sx <= 1; sx += 2) {
+            for (int sz = -1; sz <= 1; sz += 2) {
+                BlockPos fence = base.offset(sx * 4, -1, sz * 4);
+                BlockPos lamp = fence.above();
+                if (level.getBlockState(fence).canOcclude() && level.getBlockState(lamp).isAir()) {
+                    level.setBlockAndUpdate(fence, Blocks.OAK_FENCE.defaultBlockState());
+                    level.setBlockAndUpdate(lamp, Blocks.LANTERN.defaultBlockState());
+                }
+            }
+        }
     }
 
     /** 房子四角外面插火把：夜里少刷僵尸， villagers 不容易被偷袭。 */
@@ -368,6 +392,17 @@ public final class VillageGrowth {
     }
 
     // ── 小构件 ──────────────────────────────────────────────────────────────
+
+    /** 吊灯：挂在天花板上，不占地面、不挡村民认领工作方块。 */
+    private static void placeHangingLantern(Level level, BlockPos pos) {
+        if (!level.getBlockState(pos).isAir()) {
+            return;
+        }
+        if (!level.getBlockState(pos.above()).canOcclude()) {
+            return;
+        }
+        level.setBlockAndUpdate(pos, Blocks.LANTERN.defaultBlockState().setValue(LanternBlock.HANGING, true));
+    }
 
     private static void placeDoor(Level level, BlockPos pos, Direction facing) {
         level.setBlockAndUpdate(pos, Blocks.OAK_DOOR.defaultBlockState()
