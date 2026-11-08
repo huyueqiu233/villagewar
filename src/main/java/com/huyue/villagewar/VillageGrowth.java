@@ -217,6 +217,34 @@ public final class VillageGrowth {
     /** key -> 这场袭击的状态。临时数据，重启就散，不影响存档。 */
     private static final Map<String, RaidState> ACTIVE_RAIDS = new HashMap<>();
 
+    /** `/villagewar raid` 用：立刻在当前玩家附近的村子开一场袭击（不等计时器）。 */
+    public static boolean forceRaid(ServerLevel level, ServerPlayer player) {
+        List<Villager> villagers = level.getEntitiesOfClass(Villager.class,
+                player.getBoundingBox().inflate(RADIUS), Villager::isAlive);
+        if (villagers.size() < MIN_VILLAGERS) {
+            return false;
+        }
+        double sx = 0.0;
+        double sy = 0.0;
+        double sz = 0.0;
+        for (Villager villager : villagers) {
+            sx += villager.getX();
+            sy += villager.getY();
+            sz += villager.getZ();
+        }
+        BlockPos center = BlockPos.containing(sx / villagers.size(), sy / villagers.size(), sz / villagers.size());
+        String key = keyOf(level, center);
+        if (ACTIVE_RAIDS.containsKey(key)) {
+            return false;
+        }
+        GrowthStore.Entry entry = GrowthStore.get(key);
+        entry.lastX = center.getX();
+        entry.lastZ = center.getZ();
+        entry.dimension = level.dimension().location().toString();
+        startRaid(level, center, key, entry);
+        return true;
+    }
+
     private static void raidTick(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry) {
         long now = System.currentTimeMillis();
         RaidState raid = ACTIVE_RAIDS.get(key);
