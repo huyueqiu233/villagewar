@@ -18,6 +18,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoorBlock;
@@ -31,9 +32,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * M0 的核心：村庄会自己长。
  *
  * <p>每 10 秒扫一次玩家周围的村民：够 3 只就算一个村子，按村民数量攒成长点；
- * 攒够就在村子边上盖东西。现在有三种：小屋（带门和床）、长屋（两间房两张床）、农田。</p>
- *
- * <p>刻意做得很土：不碰原版村庄数据、不改村民 AI，先验证「世界自己在动」这件事。</p>
+ * 攒够就在村子边上盖东西。现在有三种：小屋（门/床/随机工作方块）、长屋（两张床）、农田。</p>
  */
 public final class VillageGrowth {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -43,6 +42,22 @@ public final class VillageGrowth {
     private static final int GROWTH_COST = 60;
     private static final int RADIUS = 48;
     private static final int MIN_VILLAGERS = 3;
+
+    /** 工作方块池：建房子时随机挑，别让整个村子全是渔夫。 */
+    private static final Block[] WORKSTATIONS = {
+            Blocks.BARREL,            // 渔夫
+            Blocks.SMITHING_TABLE,    // 工具匠
+            Blocks.LECTERN,           // 图书管理员
+            Blocks.CARTOGRAPHY_TABLE, // 制图师
+            Blocks.FLETCHING_TABLE,   // 制箭师
+            Blocks.LOOM,              // 牧羊人
+            Blocks.STONECUTTER,       // 石匠
+            Blocks.SMOKER,            // 屠夫
+            Blocks.BLAST_FURNACE,     // 盔甲匠
+            Blocks.BREWING_STAND,     // 牧师
+            Blocks.GRINDSTONE,        // 武器匠
+            Blocks.COMPOSTER          // 农民
+    };
 
     private static int tickCounter = 0;
     private static boolean loaded = false;
@@ -55,6 +70,7 @@ public final class VillageGrowth {
         if (!loaded) {
             GrowthStore.load(server);
             loaded = true;
+            LOGGER.info("[villagewar] 成长系统已加载");
         }
 
         tickCounter++;
@@ -130,10 +146,6 @@ public final class VillageGrowth {
 
     // ── 建造 ────────────────────────────────────────────────────────────────
 
-    /**
-     * 按已建数量轮换建筑类型：小屋 → 农田 → 长屋 → 小屋……
-     * 加一点随机，避免每个村子长得一模一样。
-     */
     private static String tryBuild(ServerLevel level, BlockPos center, int houses) {
         int base = (houses + level.getRandom().nextInt(2)) % 3;
         for (int i = 0; i < 3; i++) {
@@ -160,7 +172,6 @@ public final class VillageGrowth {
         return null;
     }
 
-    /** 在村子周围找一个能放下的位置；三种建筑尺寸不同。 */
     private static BlockPos findSpot(ServerLevel level, BlockPos center, int type) {
         int halfW = type == 2 ? 3 : (type == 1 ? 3 : 2);
         int halfD = type == 2 ? 3 : 2;
@@ -169,28 +180,24 @@ public final class VillageGrowth {
             int dx = random.nextInt(45) - 22;
             int dz = random.nextInt(45) - 22;
             if (Math.abs(dx) < halfW + 2 && Math.abs(dz) < halfD + 2) {
-                continue; // 别盖在村子正中间
+                continue;
             }
             int x = center.getX() + dx;
             int z = center.getZ() + dz;
             int y = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
             BlockPos base = new BlockPos(x, y, z);
-            if (areaIsClear(level, base, halfW, halfD, false)) {
+            if (areaIsClear(level, base, halfW, halfD)) {
                 return base;
             }
         }
         return null;
     }
 
-    /**
-     * 地基范围：脚下必须是实心方块，上面 4 层必须是空气。
-     * allowGround=true 用于农田（脚下本来就该是泥土/草方块，上面要有空间）。
-     */
-    private static boolean areaIsClear(Level level, BlockPos base, int halfW, int halfD, boolean allowGround) {
+    /** 地基范围：脚下必须是实心方块，上面 4 层必须是空气。 */
+    private static boolean areaIsClear(Level level, BlockPos base, int halfW, int halfD) {
         for (int dx = -halfW; dx <= halfW; dx++) {
             for (int dz = -halfD; dz <= halfD; dz++) {
-                BlockPos ground = base.offset(dx, -1, dz);
-                if (!level.getBlockState(ground).canOcclude()) {
+                if (!level.getBlockState(base.offset(dx, -1, dz)).canOcclude()) {
                     return false;
                 }
                 for (int dy = 0; dy <= 3; dy++) {
@@ -215,7 +222,7 @@ public final class VillageGrowth {
             }
         }
 
-        // 墙：四角原木，中间木板；南面留门洞
+        // 墙：四角原木，中间木板；南面正中留 1 宽 2 高的门洞
         for (int dx = -2; dx <= 2; dx++) {
             for (int dz = -2; dz <= 2; dz++) {
                 boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
@@ -224,11 +231,10 @@ public final class VillageGrowth {
                 }
                 boolean corner = Math.abs(dx) == 2 && Math.abs(dz) == 2;
                 for (int dy = 0; dy <= 2; dy++) {
-                    BlockPos pos = base.offset(dx, dy, dz);
                     if (dz == 2 && dx == 0 && dy <= 1) {
                         continue; // 门洞，稍后放门
                     }
-                    level.setBlockAndUpdate(pos, corner ? log : planks);
+                    level.setBlockAndUpdate(base.offset(dx, dy, dz), corner ? log : planks);
                 }
             }
         }
@@ -237,7 +243,7 @@ public final class VillageGrowth {
         level.setBlockAndUpdate(base.offset(-2, 1, 0), glass);
         level.setBlockAndUpdate(base.offset(2, 1, 0), glass);
 
-        // 屋顶（两级，看着像个屋顶）
+        // 屋顶（两级）
         for (int dx = -2; dx <= 2; dx++) {
             for (int dz = -2; dz <= 2; dz++) {
                 level.setBlockAndUpdate(base.offset(dx, 3, dz), planks);
@@ -250,15 +256,17 @@ public final class VillageGrowth {
         }
 
         placeDoor(level, base.offset(0, 0, 2), Direction.SOUTH);
-
-        // 室内：床（脚 + 头）、工作台、木桶、灯笼
         placeBed(level, base.offset(-1, 0, 1), Direction.NORTH);
-        level.setBlockAndUpdate(base.offset(1, 0, -1), Blocks.CRAFTING_TABLE.defaultBlockState());
+
+        // 随机工作方块 + 灯笼（灯放在工作方块上，不悬空）
+        BlockPos station = base.offset(1, 0, -1);
+        level.setBlockAndUpdate(station, randomWorkstation(level.getRandom()));
+        level.setBlockAndUpdate(station.above(), Blocks.LANTERN.defaultBlockState());
         level.setBlockAndUpdate(base.offset(1, 0, 1), Blocks.BARREL.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(1, 1, 1), Blocks.LANTERN.defaultBlockState());
+
+        placeOutdoorTorches(level, base, 3);
     }
 
-    /** 7×5 的长屋：两张床，两端各一个工作方块。 */
     private static void placeLongHouse(Level level, BlockPos base) {
         BlockState planks = Blocks.SPRUCE_PLANKS.defaultBlockState();
         BlockState log = Blocks.SPRUCE_LOG.defaultBlockState();
@@ -274,7 +282,7 @@ public final class VillageGrowth {
             }
         }
 
-        // 墙
+        // 墙：只在正中留 1 宽 2 高的门洞，其余全部封死
         for (int dx = -halfW; dx <= halfW; dx++) {
             for (int dz = -halfD; dz <= halfD; dz++) {
                 boolean edge = Math.abs(dx) == halfW || Math.abs(dz) == halfD;
@@ -283,8 +291,8 @@ public final class VillageGrowth {
                 }
                 boolean corner = Math.abs(dx) == halfW && Math.abs(dz) == halfD;
                 for (int dy = 0; dy <= 2; dy++) {
-                    if (dz == halfD && Math.abs(dx) <= 1 && dy <= 1) {
-                        continue; // 中间两格宽的门洞
+                    if (dz == halfD && dx == 0 && dy <= 1) {
+                        continue; // 门洞
                     }
                     level.setBlockAndUpdate(base.offset(dx, dy, dz), corner ? log : planks);
                 }
@@ -309,21 +317,21 @@ public final class VillageGrowth {
             }
         }
 
-        // 两扇门（门洞宽 3 格，中间放一扇即可）
         placeDoor(level, base.offset(0, 0, halfD), Direction.SOUTH);
 
-        // 两张床分列左右
         placeBed(level, base.offset(-2, 0, 0), Direction.NORTH);
         placeBed(level, base.offset(2, 0, 0), Direction.NORTH);
 
-        level.setBlockAndUpdate(base.offset(-1, 0, -1), Blocks.CRAFTING_TABLE.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(1, 0, -1), Blocks.BARREL.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(0, 1, 0), Blocks.LANTERN.defaultBlockState());
+        BlockPos stationA = base.offset(-1, 0, -1);
+        BlockPos stationB = base.offset(1, 0, -1);
+        level.setBlockAndUpdate(stationA, randomWorkstation(level.getRandom()));
+        level.setBlockAndUpdate(stationB, randomWorkstation(level.getRandom()));
+        level.setBlockAndUpdate(stationA.above(), Blocks.LANTERN.defaultBlockState());
+
+        placeOutdoorTorches(level, base, 4);
     }
 
-    /** 7×7 农田：中间水源，四周耕地 + 成熟小麦，角落堆肥桶。 */
     private static void placeFarm(Level level, BlockPos base) {
-        // 先把地面挖下去一格
         for (int dx = -3; dx <= 3; dx++) {
             for (int dz = -3; dz <= 3; dz++) {
                 BlockPos p = base.offset(dx, -1, dz);
@@ -336,9 +344,27 @@ public final class VillageGrowth {
                 }
             }
         }
+        // 堆肥桶 + 灯笼（灯压在堆肥桶上，不悬空）
         level.setBlockAndUpdate(base.offset(-3, -1, -3), Blocks.COMPOSTER.defaultBlockState());
+        level.setBlockAndUpdate(base.offset(-3, 0, -3), Blocks.LANTERN.defaultBlockState());
         level.setBlockAndUpdate(base.offset(3, -1, 3), Blocks.COMPOSTER.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(0, 2, 0), Blocks.LANTERN.defaultBlockState());
+        level.setBlockAndUpdate(base.offset(3, 0, 3), Blocks.LANTERN.defaultBlockState());
+    }
+
+    /** 房子四角外面插火把：夜里少刷僵尸， villagers 不容易被偷袭。 */
+    private static void placeOutdoorTorches(Level level, BlockPos base, int distance) {
+        int[][] offsets = {{-distance, -distance}, {-distance, distance}, {distance, -distance}, {distance, distance}};
+        for (int[] o : offsets) {
+            BlockPos ground = base.offset(o[0], -1, o[1]);
+            BlockPos torch = base.offset(o[0], 0, o[1]);
+            if (level.getBlockState(ground).canOcclude() && level.getBlockState(torch).isAir()) {
+                level.setBlockAndUpdate(torch, Blocks.TORCH.defaultBlockState());
+            }
+        }
+    }
+
+    private static BlockState randomWorkstation(RandomSource random) {
+        return WORKSTATIONS[random.nextInt(WORKSTATIONS.length)].defaultBlockState();
     }
 
     // ── 小构件 ──────────────────────────────────────────────────────────────
