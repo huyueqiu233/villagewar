@@ -17,9 +17,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Pillager;
 import net.minecraft.world.entity.monster.Vindicator;
 import net.minecraft.world.entity.npc.Villager;
@@ -36,6 +39,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
@@ -199,16 +203,31 @@ public final class VillageGrowth {
     private static final long RAID_FIRST_DELAY_MS = 10 * 60 * 1000L;
     private static final long RAID_INTERVAL_MIN_MS = 20 * 60 * 1000L;
     private static final long RAID_INTERVAL_MAX_MS = 40 * 60 * 1000L;
-    private static final long RAID_DURATION_MS = 3 * 60 * 1000L;
+    private static final long RAID_WAVE_GAP_MS = 45 * 1000L;   // 每一波之间隔 45 秒
+    private static final int RAID_WAVES = 3;                    // 一场袭击三波
+    private static final long RAID_TAIL_MS = 60 * 1000L;        // 最后一波之后再等 1 分钟收尾
 
-    /** key -> 这场袭击的结束时间。临时状态，重启就散，不影响存档。 */
-    private static final Map<String, Long> ACTIVE_RAIDS = new HashMap<>();
+    /** 一场袭击的进度：现在第几波、下一波什么时候来、什么时候结束。 */
+    private static final class RaidState {
+        int wave;
+        long nextWaveAt;
+        long endAt;
+    }
+
+    /** key -> 这场袭击的状态。临时数据，重启就散，不影响存档。 */
+    private static final Map<String, RaidState> ACTIVE_RAIDS = new HashMap<>();
 
     private static void raidTick(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry) {
         long now = System.currentTimeMillis();
-        Long endAt = ACTIVE_RAIDS.get(key);
-        if (endAt != null) {
-            if (now >= endAt) {
+        RaidState raid = ACTIVE_RAIDS.get(key);
+        if (raid != null) {
+            if (now >= raid.nextWaveAt && raid.wave < RAID_WAVES) {
+                raid.wave++;
+                spawnWave(level, center, entry, raid.wave);
+                raid.nextWaveAt = now + RAID_WAVE_GAP_MS;
+                notify(level, center, "第 " + raid.wave + " 波掠夺者来了！");
+            }
+            if (now >= raid.endAt) {
                 ACTIVE_RAIDS.remove(key);
                 notify(level, center, "袭击结束了，村子还站着");
                 LOGGER.info("[villagewar] 袭击结束 {}", key);
@@ -233,23 +252,64 @@ public final class VillageGrowth {
 
     private static void startRaid(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry) {
         RandomSource random = level.getRandom();
-        int pillagers = 3 + random.nextInt(3);
-        for (int i = 0; i < pillagers; i++) {
-            equipSpawned(spawnAt(level, center, EntityType.PILLAGER, 22 + random.nextInt(6)));
-        }
-        equipSpawned(spawnAt(level, center, EntityType.VINDICATOR, 22 + random.nextInt(6)));
-        // 村子自己武装：房子够多就出铁傀儡
-        int golems = Math.min(2, entry.houses / 2);
-        for (int i = 0; i < golems; i++) {
+
+        RaidState raid = new RaidState();
+        raid.wave = 1;
+        raid.nextWaveAt = System.currentTimeMillis() + RAID_WAVE_GAP_MS;
+        raid.endAt = System.currentTimeMillis() + (RAID_WAVES - 1) * RAID_WAVE_GAP_MS + RAID_TAIL_MS;
+        ACTIVE_RAIDS.put(key, raid);
+
+        // 村子自己武装：房子越多，铁傀儡上限越高；先把缺的补上
+        int desiredGolems = Math.min(6, 1 + entry.houses / 3);
+        AABB villageBox = new AABB(center.getX() - 48, center.getY() - 48, center.getZ() - 48,
+                center.getX() + 48, center.getY() + 48, center.getZ() + 48);
+        long existing = level.getEntitiesOfClass(IronGolem.class, villageBox, IronGolem::isAlive).size();
+        int toSpawn = (int) Math.min(3, Math.max(0, desiredGolems - existing));
+        for (int i = 0; i < toSpawn; i++) {
             spawnAt(level, center, EntityType.IRON_GOLEM, 8 + random.nextInt(6));
         }
+
+        spawnWave(level, center, entry, 1);
+
         entry.raids++;
         entry.nextRaidAt = System.currentTimeMillis() + RAID_INTERVAL_MIN_MS
                 + random.nextInt((int) (RAID_INTERVAL_MAX_MS - RAID_INTERVAL_MIN_MS));
-        ACTIVE_RAIDS.put(key, System.currentTimeMillis() + RAID_DURATION_MS);
         GrowthStore.markDirty();
-        notify(level, center, "掠夺者来袭！");
-        LOGGER.info("[villagewar] 袭击开始 {}（第 {} 次，{} 个掠夺者 + {} 个铁傀儡）", key, entry.raids, pillagers, golems);
+        notify(level, center, "掠夺者来袭！（第 " + entry.raids + " 次，共 " + RAID_WAVES + " 波）");
+        LOGGER.info("[villagewar] 袭击开始 {}（第 {} 次，房子 {} 座，铁傀儡 {} 个）", key, entry.raids, entry.houses, desiredGolems);
+    }
+
+    /** 按村子规模和波次生成一波袭击者：越往后越多、种类越杂。 */
+    private static void spawnWave(ServerLevel level, BlockPos center, GrowthStore.Entry entry, int wave) {
+        RandomSource random = level.getRandom();
+        int houses = entry.houses;
+
+        int pillagers = Math.min(15, 3 + houses / 2 + entry.raids / 2 + wave);
+        for (int i = 0; i < pillagers; i++) {
+            equipSpawned(spawnAt(level, center, EntityType.PILLAGER, 22 + random.nextInt(8)));
+        }
+        if (houses >= 4 || wave >= 2) {
+            int vindicators = Math.min(4, 1 + houses / 6);
+            for (int i = 0; i < vindicators; i++) {
+                equipSpawned(spawnAt(level, center, EntityType.VINDICATOR, 22 + random.nextInt(8)));
+            }
+        }
+        if (houses >= 8 && wave >= 2) {
+            spawnAt(level, center, EntityType.EVOKER, 24 + random.nextInt(6));
+        }
+        if (houses >= 12 && wave >= 3) {
+            spawnAt(level, center, EntityType.RAVAGER, 24 + random.nextInt(6));
+        }
+        if (houses >= 6 && wave >= 2) {
+            spawnAt(level, center, EntityType.WITCH, 24 + random.nextInt(6));
+        }
+
+        // 给村里的村民一点抗性，别一波全被屠了（原版村民没有攻击 AI，只能少死一点）
+        AABB villagerBox = new AABB(center.getX() - 40, center.getY() - 40, center.getZ() - 40,
+                center.getX() + 40, center.getY() + 40, center.getZ() + 40);
+        for (Villager villager : level.getEntitiesOfClass(Villager.class, villagerBox, Villager::isAlive)) {
+            villager.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 600, 0));
+        }
     }
 
     private static Entity spawnAt(ServerLevel level, BlockPos center, EntityType<?> type, int radius) {
