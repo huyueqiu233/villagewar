@@ -34,14 +34,27 @@ jobs:
 
       - name: Collect jar
         run: |
-          mkdir -p dist
-          find build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' -exec cp {} dist/ \;
-          ls -la dist
+          mkdir -p /tmp/dist
+          find build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' -exec cp {} /tmp/dist/ \;
+          ls -la /tmp/dist
 
       - name: Publish jar as release
-        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Build ${{ github.run_number }}
-          files: dist/*.jar
+          files: /tmp/dist/*.jar
+
+      # 单独推一个 dist 分支放 jar：本机访问 github.com 被加速器中间人拦截，
+      # 但 git over SSH 是通的，这样下载产物不依赖 HTTPS。
+      - name: Publish jar to dist branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan dist
+          git reset --hard
+          git clean -fdx
+          cp /tmp/dist/*.jar .
+          git add -f *.jar
+          git commit -m "build ${{ github.run_number }}"
+          git push -f origin dist
