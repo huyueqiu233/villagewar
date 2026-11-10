@@ -108,7 +108,7 @@ jobs:
           ls -la server/mods > /tmp/report/mods.txt 2>/dev/null || true
           git checkout -f --orphan test-report || true
           git rm -rf --cached . >/dev/null 2>&1 || true
-          rm -rf build .gradle src gradle* settings.gradle* .github scripts README.md TEMPLATE_LICENSE.txt server 2>/dev/null || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} + 2>/dev/null || true
           cp -r /tmp/report/* .
           git add -A
           git commit -m "smoke test report ${{ github.run_number }}" || true

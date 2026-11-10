@@ -152,7 +152,10 @@ public final class VillageGrowth {
             sz += villager.getZ();
         }
         BlockPos center = BlockPos.containing(sx / villagers.size(), sy / villagers.size(), sz / villagers.size());
-        String key = keyOf(level, center);
+        String key = findVillageKey(level, center);
+        if (key == null) {
+            key = keyOf(level, center);
+        }
         GrowthStore.Entry entry = GrowthStore.get(key);
         entry.lastX = center.getX();
         entry.lastZ = center.getZ();
@@ -181,6 +184,34 @@ public final class VillageGrowth {
     /** 村子按「维度 + 所在区块」归并，避免玩家走两步就多出一个新村。 */
     private static String keyOf(ServerLevel level, BlockPos pos) {
         return level.dimension().location() + "@" + (pos.getX() >> 4) + "," + (pos.getZ() >> 4);
+    }
+
+    /** 村子合并距离：离已有村子这么近就当成同一个（村民走动不会分裂出新村）。 */
+    private static final double VILLAGE_MERGE_DIST = 64.0;
+
+    /**
+     * 找离 center 最近的已有村子（同维度、64 格内）。
+     * 村民会走动，中心点在区块边界附近漂移时，按区块归并会把一个村子拆成好几个；
+     * 所以先按距离认领，认不到才新建（2026-11-10 冒烟测试发现）。
+     */
+    private static String findVillageKey(ServerLevel level, BlockPos center) {
+        String dim = level.dimension().location().toString();
+        String best = null;
+        double bestSq = VILLAGE_MERGE_DIST * VILLAGE_MERGE_DIST;
+        for (Map.Entry<String, GrowthStore.Entry> e : GrowthStore.all().entrySet()) {
+            GrowthStore.Entry v = e.getValue();
+            if (!dim.equals(v.dimension)) {
+                continue;
+            }
+            double dx = v.lastX - center.getX();
+            double dz = v.lastZ - center.getZ();
+            double sq = dx * dx + dz * dz;
+            if (sq < bestSq) {
+                bestSq = sq;
+                best = e.getKey();
+            }
+        }
+        return best;
     }
 
     private static void announce(ServerLevel level, BlockPos center, String what, int houses) {
@@ -238,7 +269,10 @@ public final class VillageGrowth {
             sz += villager.getZ();
         }
         BlockPos center = BlockPos.containing(sx / villagers.size(), sy / villagers.size(), sz / villagers.size());
-        String key = keyOf(level, center);
+        String key = findVillageKey(level, center);
+        if (key == null) {
+            key = keyOf(level, center);
+        }
         if (ACTIVE_RAIDS.containsKey(key)) {
             return false;
         }

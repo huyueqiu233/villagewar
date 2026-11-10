@@ -97,6 +97,8 @@ console.log('等 40 秒观察袭击…');
 await sleep(40000);
 const after = await exec('/villagewar status');
 check('袭击期间服务器仍响应', /已知村庄/.test(after), after);
+const mc = after.match(/已知村庄s*(d+)s*个/);
+check('村民走动不会把村子拆开', mc && Number(mc[1]) === 1, 'count=' + (mc ? mc[1] : '?'));
 check('袭击已记录', /被袭击=1/.test(after) || /被袭击=[1-9]/.test(after), after);
 
 const bad = results.filter((r) => !r.ok);
