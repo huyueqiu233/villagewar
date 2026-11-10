@@ -69,10 +69,19 @@ const pos = bot.entity.position;
 console.log('bot spawn at', pos.x.toFixed(1), pos.y.toFixed(1), pos.z.toFixed(1));
 check('机器人成功进服', true, `${pos.x.toFixed(0)},${pos.y.toFixed(0)},${pos.z.toFixed(0)}`);
 
-/* ---------- 放 4 个村民，等成长系统识别 ---------- */
-const bx = Math.floor(pos.x);
-const by = Math.floor(pos.y);
-const bz = Math.floor(pos.z);
+/* ---------- 选势力：应该被传送到首都附近 ---------- */
+const joinOut = await exec('execute as TestBot run villagewar join azure');
+await sleep(3000);
+const posAfter = bot.entity.position;
+const moved = Math.hypot(posAfter.x - pos.x, posAfter.z - pos.z);
+check('选势力后离开出生点', moved > 800, `移动 ${moved.toFixed(0)} 格 → ${posAfter.x.toFixed(0)},${posAfter.z.toFixed(0)}`);
+const facOut = await exec('execute as TestBot run villagewar faction');
+check('势力被记录', /苍蓝/.test(facOut), `join=${joinOut} | ${facOut}`);
+
+/* ---------- 在首都旁边放 4 个村民，等成长系统识别 ---------- */
+const bx = Math.floor(posAfter.x);
+const by = Math.floor(posAfter.y);
+const bz = Math.floor(posAfter.z);
 const spots = [[0, 0], [2, 0], [0, 2], [2, 2]];
 for (const [dx, dz] of spots) {
   await exec(`/summon minecraft:villager ${bx + dx} ${by} ${bz + dz}`);

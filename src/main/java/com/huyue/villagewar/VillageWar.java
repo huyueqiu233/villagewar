@@ -6,10 +6,10 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 
 /**
- * 村庄争霸 Village War —— M0：让村庄自己长起来。
+ * 村庄争霸 Village War。
  *
- * <p>这一版只做最小的核心循环：玩家附近的村庄按「村民数 + 时间」攒成长点，
- * 攒够就在村子边上盖一间小屋。不掺势力、不掺战争，先验证「世界自己会动」这件事。</p>
+ * <p>M0：村庄会自己长；M1：离屏模拟；M2：掠夺者袭击；
+ * M3 前置：两个势力 + 首都 + 选势力随机出生。</p>
  */
 @Mod(VillageWar.MODID)
 public final class VillageWar {
@@ -18,7 +18,12 @@ public final class VillageWar {
     public VillageWar(IEventBus modEventBus, ModContainer modContainer) {
         // 服务端每 tick 的分片检查（内部自己按节流跑）
         NeoForge.EVENT_BUS.addListener(VillageGrowth::onServerTick);
-        // /villagewar status 调试命令
+        // /villagewar status / raid / join / faction
         NeoForge.EVENT_BUS.addListener(VillageWarCommand::register);
+        // 开服时把两个首都搭好
+        NeoForge.EVENT_BUS.addListener(FactionSpawn::onServerStarted);
+        // 首次进服发势力选择；死亡重生回势力范围
+        NeoForge.EVENT_BUS.addListener(FactionSpawn::onLogin);
+        NeoForge.EVENT_BUS.addListener(FactionSpawn::onRespawn);
     }
 }
