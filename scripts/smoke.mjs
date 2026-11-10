@@ -50,8 +50,8 @@ const countOf = (text) => {
   return m ? Number(m[1]) : -1;
 };
 const raidsOf = (text) => {
-  const m = String(text).match(/被袭击=(\d+)/);
-  return m ? Number(m[1]) : -1;
+  const all = [...String(text).matchAll(/被袭击=(\d+)/g)].map((m) => Number(m[1]));
+  return all.length ? Math.max(...all) : -1;
 };
 
 await new Promise((r) => sock.once('connect', r));
@@ -99,13 +99,15 @@ check('袭击期间服务器仍响应', /已知村庄/.test(midStatus), midStatu
 check('袭击被记录', raidsOf(midStatus) >= 1, midStatus);
 
 /* ---------- 等这场打完 ---------- */
-console.log('等 130 秒让这场袭击收尾…');
-await sleep(130000);
+console.log('等 170 秒让这场袭击收尾…');
+await sleep(170000);
 
 /* ---------- 势力战争：站自家村子，敌方来打 ---------- */
 const beforeWar = await exec('/villagewar status');
 const raidsBefore = raidsOf(beforeWar);
 const warOut = await exec('execute at TestBot run villagewar wartick');
+await sleep(3000);
+await exec('execute at TestBot run villagewar wartick');
 await sleep(3000);
 const afterWar = await exec('/villagewar status');
 check('势力战争能触发', raidsOf(afterWar) > raidsBefore, `${warOut} | 前=${raidsBefore} 后=${raidsOf(afterWar)}`);
