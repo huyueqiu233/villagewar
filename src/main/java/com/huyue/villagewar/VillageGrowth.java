@@ -233,6 +233,7 @@ public final class VillageGrowth {
                     continue;
                 }
                 Faction owner = Faction.byId(v.faction);
+                LOGGER.info("[villagewar][war] 检查 {} 所有者={} 房屋={} 玩家势力={} 距离平方={}", e.getKey(), v.faction, v.houses, playerFaction.id, (int) (Math.pow(v.lastX - player.getX(), 2) + Math.pow(v.lastZ - player.getZ(), 2)));
                 if (owner == null) {
                     continue;
                 }
@@ -254,6 +255,7 @@ public final class VillageGrowth {
                         : playerFaction;
                 BlockPos center = new BlockPos(v.lastX, player.getBlockY(), v.lastZ);
                 WAR_COOLDOWN.put(key, now);
+                LOGGER.info("[villagewar][war] {} 进攻 {}（{}）", attacker.id, key, owner.id);
                 startRaid(level, center, key, v, attacker.display);
             }
         }
