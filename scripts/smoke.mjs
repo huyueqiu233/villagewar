@@ -66,6 +66,7 @@ check('status 命令可用', /已知村庄/.test(status0), status0);
 const bot = mineflayer.createBot({ host: HOST, port: 25565, username: 'TestBot', auth: 'offline', version: '1.21.1' });
 bot.on('kicked', (r) => console.log('bot kicked:', JSON.stringify(r).slice(0, 200)));
 bot.on('error', (e) => console.log('bot error:', e.message));
+bot.on('death', () => console.log('bot died (creative 应该不会)'));
 await new Promise((resolve, reject) => {
   const t = setTimeout(() => reject(new Error('机器人 60 秒内没进服')), 60000);
   bot.once('spawn', () => { clearTimeout(t); resolve(); });
@@ -81,6 +82,7 @@ await sleep(3000);
 const pos1 = bot.entity.position.clone();
 const moved = Math.hypot(pos1.x - pos0.x, pos1.z - pos0.z);
 check('选势力后离开出生点', moved > 800, `移动 ${moved.toFixed(0)} 格 → ${pos1.x.toFixed(0)},${pos1.z.toFixed(0)}`);
+await exec('gamemode creative TestBot');
 const facOut = await exec('execute as TestBot run villagewar faction');
 check('势力被记录', /苍蓝/.test(facOut), facOut);
 
