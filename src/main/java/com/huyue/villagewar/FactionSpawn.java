@@ -60,6 +60,8 @@ public final class FactionSpawn {
         ServerLevel overworld = event.getServer().overworld();
         for (Faction faction : Faction.values()) {
             CapitalBuilder.ensureBuilt(overworld, faction);
+            // 登记成村子，玩家不在时也能靠离屏模拟慢慢长
+            VillageGrowth.ensureVillage(overworld, faction.capital(overworld), faction, 6);
         }
     }
 

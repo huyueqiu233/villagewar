@@ -53,6 +53,30 @@ public final class VillageWarCommand {
                                     FactionSpawn.join(player, faction);
                                     return 1;
                                 })))
+                .then(Commands.literal("wartick").executes(ctx -> {
+                    VillageGrowth.forceWarTick(ctx.getSource().getServer());
+                    ctx.getSource().sendSuccess(() -> Component.literal("已评估一次势力战争"), false);
+                    return 1;
+                }))
+                .then(Commands.literal("war").executes(ctx -> {
+                    CommandSourceStack source = ctx.getSource();
+                    source.sendSuccess(() -> Component.literal("势力战争："), false);
+                    for (Faction faction : Faction.values()) {
+                        int villages = 0;
+                        int houses = 0;
+                        for (GrowthStore.Entry e : GrowthStore.all().values()) {
+                            if (faction.id.equals(e.faction)) {
+                                villages++;
+                                houses += e.houses;
+                            }
+                        }
+                        int v = villages;
+                        int h = houses;
+                        source.sendSuccess(() -> Component.literal(" - " + faction.display
+                                + "：村子 " + v + " 个，房屋 " + h + " 座").withStyle(faction.color), false);
+                    }
+                    return 1;
+                }))
                 .then(Commands.literal("faction").executes(ctx -> {
                     ServerPlayer player = ctx.getSource().getPlayerOrException();
                     Faction faction = FactionSpawn.factionOf(player);

@@ -1,5 +1,4 @@
-// 端到端冒烟测试：真的连一个机器人进服（成长系统只对"有玩家的维度"生效），
-// 放村民 → 等村庄被识别 → 控制台触发袭击 → 检查服务器没崩。
+// 端到端冒烟测试：机器人进服 → 选势力被传送 → 村庄成长 → 袭击/势力战争 → 不崩。
 // 用法：node scripts/smoke.mjs
 import net from 'node:net';
 import mineflayer from 'mineflayer';
@@ -44,7 +43,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok });
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' :: ' + String(detail).slice(0, 180) : ''}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' :: ' + String(detail).slice(0, 200) : ''}`);
+};
+const countOf = (text) => {
+  const m = String(text).match(/已知村庄\s*(\d+)\s*个/);
+  return m ? Number(m[1]) : -1;
+};
+const raidsOf = (text) => {
+  const m = String(text).match(/被袭击=(\d+)/);
+  return m ? Number(m[1]) : -1;
 };
 
 await new Promise((r) => sock.once('connect', r));
@@ -59,56 +66,52 @@ check('status 命令可用', /已知村庄/.test(status0), status0);
 const bot = mineflayer.createBot({ host: HOST, port: 25565, username: 'TestBot', auth: 'offline', version: '1.21.1' });
 bot.on('kicked', (r) => console.log('bot kicked:', JSON.stringify(r).slice(0, 200)));
 bot.on('error', (e) => console.log('bot error:', e.message));
-
 await new Promise((resolve, reject) => {
   const t = setTimeout(() => reject(new Error('机器人 60 秒内没进服')), 60000);
   bot.once('spawn', () => { clearTimeout(t); resolve(); });
 });
 await sleep(5000);
-const pos = bot.entity.position;
-console.log('bot spawn at', pos.x.toFixed(1), pos.y.toFixed(1), pos.z.toFixed(1));
-check('机器人成功进服', true, `${pos.x.toFixed(0)},${pos.y.toFixed(0)},${pos.z.toFixed(0)}`);
+const pos0 = bot.entity.position.clone();
+console.log('bot spawn at', pos0.x.toFixed(1), pos0.y.toFixed(1), pos0.z.toFixed(1));
+check('机器人成功进服', true, `${pos0.x.toFixed(0)},${pos0.y.toFixed(0)},${pos0.z.toFixed(0)}`);
 
 /* ---------- 选势力：应该被传送到首都附近 ---------- */
-const joinOut = await exec('execute as TestBot run villagewar join azure');
+await exec('execute as TestBot run villagewar join azure');
 await sleep(3000);
-const posAfter = bot.entity.position;
-const moved = Math.hypot(posAfter.x - pos.x, posAfter.z - pos.z);
-check('选势力后离开出生点', moved > 800, `移动 ${moved.toFixed(0)} 格 → ${posAfter.x.toFixed(0)},${posAfter.z.toFixed(0)}`);
+const pos1 = bot.entity.position.clone();
+const moved = Math.hypot(pos1.x - pos0.x, pos1.z - pos0.z);
+check('选势力后离开出生点', moved > 800, `移动 ${moved.toFixed(0)} 格 → ${pos1.x.toFixed(0)},${pos1.z.toFixed(0)}`);
 const facOut = await exec('execute as TestBot run villagewar faction');
-check('势力被记录', /苍蓝/.test(facOut), `join=${joinOut} | ${facOut}`);
+check('势力被记录', /苍蓝/.test(facOut), facOut);
 
-/* ---------- 在首都旁边放 4 个村民，等成长系统识别 ---------- */
-const bx = Math.floor(posAfter.x);
-const by = Math.floor(posAfter.y);
-const bz = Math.floor(posAfter.z);
-const spots = [[0, 0], [2, 0], [0, 2], [2, 2]];
-for (const [dx, dz] of spots) {
-  await exec(`/summon minecraft:villager ${bx + dx} ${by} ${bz + dz}`);
-}
-await exec('/time set day');
+/* ---------- 等首都长房子 ---------- */
+await sleep(15000);
+const baseStatus = await exec('/villagewar status');
+const baseCount = countOf(baseStatus);
+check('两个首都都登记成村子', baseCount >= 2, `count=${baseCount} :: ${baseStatus}`);
 
-let count = 0;
-let last = '';
-for (let i = 0; i < 18; i += 1) {           // 最多等 90 秒
-  await sleep(5000);
-  last = await exec('/villagewar status');
-  const m = last.match(/已知村庄\s*(\d+)\s*个/);
-  count = m ? Number(m[1]) : -1;
-  if (count >= 1) break;
-}
-check('村庄被识别', count >= 1, `count=${count} :: ${last}`);
-
+/* ---------- 手动 raid ---------- */
 const raidMsg = await exec('execute at TestBot run villagewar raid');
 check('raid 能开打', /袭击已开始/.test(raidMsg), raidMsg);
+await sleep(30000);
+const midStatus = await exec('/villagewar status');
+check('袭击期间服务器仍响应', /已知村庄/.test(midStatus), midStatus);
+check('袭击被记录', raidsOf(midStatus) >= 1, midStatus);
 
-console.log('等 40 秒观察袭击…');
-await sleep(40000);
-const after = await exec('/villagewar status');
-check('袭击期间服务器仍响应', /已知村庄/.test(after), after);
-const mc = after.match(/已知村庄\s*(\d+)\s*个/);
-check('村民走动不会把村子拆开', mc && Number(mc[1]) === 1, 'count=' + (mc ? mc[1] : '?'));
-check('袭击已记录', /被袭击=1/.test(after) || /被袭击=[1-9]/.test(after), after);
+/* ---------- 等这场打完 ---------- */
+console.log('等 130 秒让这场袭击收尾…');
+await sleep(130000);
+
+/* ---------- 势力战争：站自家村子，敌方来打 ---------- */
+const beforeWar = await exec('/villagewar status');
+const raidsBefore = raidsOf(beforeWar);
+const warOut = await exec('execute at TestBot run villagewar wartick');
+await sleep(3000);
+const afterWar = await exec('/villagewar status');
+check('势力战争能触发', raidsOf(afterWar) > raidsBefore, `${warOut} | 前=${raidsBefore} 后=${raidsOf(afterWar)}`);
+
+const finalCount = countOf(afterWar);
+check('村子没有被玩家走动拆散', finalCount === baseCount, `base=${baseCount} final=${finalCount}`);
 
 const bad = results.filter((r) => !r.ok);
 bot.quit();

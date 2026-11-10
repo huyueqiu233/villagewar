@@ -74,6 +74,10 @@ public final class VillageGrowth {
     };
 
     private static int tickCounter = 0;
+    private static int warCounter = 0;
+    private static final int WAR_INTERVAL_TICKS = 20 * 60 * 4; // 4 分钟评估一次势力战争
+    private static final Map<String, Long> WAR_COOLDOWN = new HashMap<>();
+    private static final long WAR_COOLDOWN_MS = 5 * 60 * 1000L;
     private static boolean loaded = false;
 
     private VillageGrowth() {
@@ -104,6 +108,10 @@ public final class VillageGrowth {
             }
         }
         simulateRemote(System.currentTimeMillis());
+        warCounter++;
+        if (warCounter % WAR_INTERVAL_TICKS == 0) {
+            factionWarTick(server);
+        }
         GrowthStore.saveIfDirty(server);
     }
 
@@ -136,6 +144,23 @@ public final class VillageGrowth {
         }
     }
 
+    /** 服务端启动时给首都登记一个村子，让它在离屏时也能长。 */
+    public static void ensureVillage(ServerLevel level, BlockPos center, Faction faction, int population) {
+        String key = findVillageKey(level, center);
+        if (key == null) {
+            key = keyOf(level, center);
+        }
+        GrowthStore.Entry entry = GrowthStore.get(key);
+        entry.lastX = center.getX();
+        entry.lastZ = center.getZ();
+        entry.dimension = level.dimension().location().toString();
+        entry.faction = faction.id;
+        entry.population = Math.max(population, entry.population);
+        entry.points = Math.max(entry.points, 60); // 首都先攒够一座房子的点，玩家一到就能看到东西
+        entry.lastSeenAt = System.currentTimeMillis();
+        GrowthStore.markDirty();
+    }
+
     private static void growAround(ServerLevel level, ServerPlayer player) {
         List<Villager> villagers = level.getEntitiesOfClass(Villager.class,
                 player.getBoundingBox().inflate(RADIUS), Villager::isAlive);
@@ -160,6 +185,8 @@ public final class VillageGrowth {
         entry.lastX = center.getX();
         entry.lastZ = center.getZ();
         entry.dimension = level.dimension().location().toString();
+        Faction owner = Faction.ownerOf(level, center);
+        entry.faction = owner == null ? "" : owner.id;
         entry.lastSeenAt = System.currentTimeMillis();
         entry.population = villagers.size();
         entry.points = Math.min(GROWTH_COST * 6, entry.points + Math.max(1, villagers.size() / 2));
@@ -179,6 +206,56 @@ public final class VillageGrowth {
         }
 
         raidTick(level, center, key, entry);
+    }
+
+    /**
+     * 势力战争（M3 第一版）：玩家站在哪个村子附近，另一个势力就会来打这里。
+     * 站在自家村子 → 敌方军队来袭；站在敌方村子 → 自己势力出兵。
+     */
+    private static void factionWarTick(MinecraftServer server) {
+        ServerLevel level = server.overworld();
+        long now = System.currentTimeMillis();
+        String dim = level.dimension().location().toString();
+        for (ServerPlayer player : level.players()) {
+            Faction playerFaction = FactionSpawn.factionOf(player);
+            if (playerFaction == null) {
+                continue;
+            }
+            for (Map.Entry<String, GrowthStore.Entry> e : GrowthStore.all().entrySet()) {
+                GrowthStore.Entry v = e.getValue();
+                if (!dim.equals(v.dimension) || v.houses < 1) {
+                    continue;
+                }
+                Faction owner = Faction.byId(v.faction);
+                if (owner == null) {
+                    continue;
+                }
+                double dx = v.lastX - player.getX();
+                double dz = v.lastZ - player.getZ();
+                if (dx * dx + dz * dz > 96.0 * 96.0) {
+                    continue;
+                }
+                String key = e.getKey();
+                if (ACTIVE_RAIDS.containsKey(key)) {
+                    continue;
+                }
+                Long last = WAR_COOLDOWN.get(key);
+                if (last != null && now - last < WAR_COOLDOWN_MS) {
+                    continue;
+                }
+                Faction attacker = owner == playerFaction
+                        ? (playerFaction == Faction.CRIMSON ? Faction.AZURE : Faction.CRIMSON)
+                        : playerFaction;
+                BlockPos center = new BlockPos(v.lastX, player.getBlockY(), v.lastZ);
+                WAR_COOLDOWN.put(key, now);
+                startRaid(level, center, key, v, attacker.display);
+            }
+        }
+    }
+
+    /** 测试/调试用：立刻跑一次势力战争评估。 */
+    public static void forceWarTick(MinecraftServer server) {
+        factionWarTick(server);
     }
 
     /** 村子按「维度 + 所在区块」归并，避免玩家走两步就多出一个新村。 */
@@ -280,6 +357,10 @@ public final class VillageGrowth {
         entry.lastX = center.getX();
         entry.lastZ = center.getZ();
         entry.dimension = level.dimension().location().toString();
+        Faction owner = Faction.ownerOf(level, center);
+        if (owner != null) {
+            entry.faction = owner.id;
+        }
         startRaid(level, center, key, entry);
         return true;
     }
@@ -318,6 +399,11 @@ public final class VillageGrowth {
     }
 
     private static void startRaid(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry) {
+        startRaid(level, center, key, entry, null);
+    }
+
+    /** attacker 不为 null 时是势力军队，会显示成「赤潮的军队来袭」。 */
+    private static void startRaid(ServerLevel level, BlockPos center, String key, GrowthStore.Entry entry, String attacker) {
         RandomSource random = level.getRandom();
 
         RaidState raid = new RaidState();
@@ -342,7 +428,8 @@ public final class VillageGrowth {
         entry.nextRaidAt = System.currentTimeMillis() + RAID_INTERVAL_MIN_MS
                 + random.nextInt((int) (RAID_INTERVAL_MAX_MS - RAID_INTERVAL_MIN_MS));
         GrowthStore.markDirty();
-        notify(level, center, "掠夺者来袭！（第 " + entry.raids + " 次，共 " + RAID_WAVES + " 波）");
+        String who = attacker == null ? "掠夺者" : attacker + "的军队";
+        notify(level, center, who + "来袭！（第 " + entry.raids + " 次，共 " + RAID_WAVES + " 波）");
         LOGGER.info("[villagewar] 袭击开始 {}（第 {} 次，房子 {} 座，铁傀儡 {} 个）", key, entry.raids, entry.houses, desiredGolems);
     }
 

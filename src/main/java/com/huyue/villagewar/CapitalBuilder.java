@@ -8,6 +8,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -101,7 +104,20 @@ public final class CapitalBuilder {
         level.setBlockAndUpdate(center.offset(-4, 1, 3), Blocks.CARTOGRAPHY_TABLE.defaultBlockState());
         level.setBlockAndUpdate(center.offset(1, 1, 3), Blocks.FLETCHING_TABLE.defaultBlockState());
 
-        // 6) 四角小农田
+        // 6) 首都先住 6 个村民（没有村民就不算村子）
+        RandomSource villagerRnd = level.getRandom();
+        for (int i = 0; i < 6; i++) {
+            Villager villager = EntityType.VILLAGER.create(level);
+            if (villager == null) {
+                continue;
+            }
+            double x = center.getX() + 0.5 + (villagerRnd.nextDouble() - 0.5) * 6.0;
+            double z = center.getZ() + 0.5 + (villagerRnd.nextDouble() - 0.5) * 6.0;
+            villager.moveTo(x, center.getY() + 1, z, villagerRnd.nextFloat() * 360.0F, 0.0F);
+            level.addFreshEntity(villager);
+        }
+
+        // 7) 四角小农田
         for (int sx = -1; sx <= 1; sx += 2) {
             for (int sz = -1; sz <= 1; sz += 2) {
                 BlockPos farm = center.offset(sx * 14, 0, sz * 14);

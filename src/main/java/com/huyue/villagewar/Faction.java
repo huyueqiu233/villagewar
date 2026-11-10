@@ -20,6 +20,8 @@ public enum Faction {
     public final int rgb;
     public final int offsetX;
     public final int offsetZ;
+    /** 主势力范围半径（单人的时候每个势力就一个圈子）。 */
+    public static final int TERRITORY_RADIUS = 320;
 
     Faction(String id, String display, ChatFormatting color, int rgb, int offsetX, int offsetZ) {
         this.id = id;
@@ -38,6 +40,23 @@ public enum Faction {
             }
         }
         return null;
+    }
+
+    /** 这个坐标归哪个势力（主势力范围内最近的；都不在范围里就是 null）。 */
+    public static Faction ownerOf(ServerLevel level, BlockPos pos) {
+        Faction best = null;
+        double bestSq = (double) TERRITORY_RADIUS * TERRITORY_RADIUS;
+        for (Faction faction : values()) {
+            BlockPos capital = faction.capital(level);
+            double dx = capital.getX() - pos.getX();
+            double dz = capital.getZ() - pos.getZ();
+            double sq = dx * dx + dz * dz;
+            if (sq <= bestSq) {
+                bestSq = sq;
+                best = faction;
+            }
+        }
+        return best;
     }
 
     /** 首都中心（地表），会顺带把区块加载出来。 */

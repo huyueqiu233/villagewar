@@ -49,6 +49,10 @@ public final class GrowthStore {
         public long nextRaidAt;
         /** 被袭击过几次。 */
         public int raids;
+        /** 所属势力 id（空 = 中立）。 */
+        public String faction = "";
+        /** 守住过几次袭击。 */
+        public int defenses;
     }
 
     public static Entry get(String key) {
