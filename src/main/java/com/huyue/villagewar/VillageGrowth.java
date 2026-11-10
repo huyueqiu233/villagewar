@@ -83,13 +83,18 @@ public final class VillageGrowth {
     private VillageGrowth() {
     }
 
-    public static void onServerTick(ServerTickEvent.Post event) {
-        MinecraftServer server = event.getServer();
+    /** 确保成长数据已经读过（首都登记必须发生在 load 之后，否则会被清空）。 */
+    public static void ensureLoaded(MinecraftServer server) {
         if (!loaded) {
             GrowthStore.load(server);
             loaded = true;
             LOGGER.info("[villagewar] 成长系统已加载");
         }
+    }
+
+    public static void onServerTick(ServerTickEvent.Post event) {
+        MinecraftServer server = event.getServer();
+        ensureLoaded(server);
 
         tickCounter++;
         if (tickCounter % CHECK_INTERVAL_TICKS != 0) {
