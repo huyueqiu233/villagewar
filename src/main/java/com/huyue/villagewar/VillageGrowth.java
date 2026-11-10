@@ -222,10 +222,8 @@ public final class VillageGrowth {
         ServerLevel level = server.overworld();
         long now = System.currentTimeMillis();
         String dim = level.dimension().location().toString();
-        LOGGER.info("[villagewar][war] tick：玩家 {} 个", level.players().size());
         for (ServerPlayer player : level.players()) {
             Faction playerFaction = FactionSpawn.factionOf(player);
-            LOGGER.info("[villagewar][war] 玩家 {} 势力={}", player.getName().getString(), playerFaction == null ? "无" : playerFaction.id);
             if (playerFaction == null) {
                 continue;
             }
@@ -235,7 +233,6 @@ public final class VillageGrowth {
                     continue;
                 }
                 Faction owner = Faction.byId(v.faction);
-                LOGGER.info("[villagewar][war] 检查 {} 所有者={} 房屋={} 玩家势力={} 距离平方={}", e.getKey(), v.faction, v.houses, playerFaction.id, (int) (Math.pow(v.lastX - player.getX(), 2) + Math.pow(v.lastZ - player.getZ(), 2)));
                 if (owner == null) {
                     continue;
                 }
@@ -257,7 +254,7 @@ public final class VillageGrowth {
                         : playerFaction;
                 BlockPos center = new BlockPos(v.lastX, player.getBlockY(), v.lastZ);
                 WAR_COOLDOWN.put(key, now);
-                LOGGER.info("[villagewar][war] {} 进攻 {}（{}）", attacker.id, key, owner.id);
+                LOGGER.info("[villagewar] {} 进攻 {}（{}）", attacker.display, key, owner.display);
                 startRaid(level, center, key, v, attacker.display);
             }
         }
