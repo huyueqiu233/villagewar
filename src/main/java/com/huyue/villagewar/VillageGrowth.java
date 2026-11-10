@@ -112,6 +112,7 @@ public final class VillageGrowth {
                 growAround(level, player);
             }
         }
+        sweepRaids(server);
         simulateRemote(System.currentTimeMillis());
         warCounter++;
         if (warCounter % WAR_INTERVAL_TICKS == 0) {
@@ -254,6 +255,30 @@ public final class VillageGrowth {
                 BlockPos center = new BlockPos(v.lastX, player.getBlockY(), v.lastZ);
                 WAR_COOLDOWN.put(key, now);
                 startRaid(level, center, key, v, attacker.display);
+            }
+        }
+    }
+
+    /**
+     * 到点了就收尾袭击：村子的 raidTick 只在玩家附近跑，村民被屠光时会卡住不收尾，
+     * 这里按时间兜底清掉，避免村子永远处于“正在被袭击”状态、挡住后面的战争。
+     */
+    private static void sweepRaids(MinecraftServer server) {
+        long now = System.currentTimeMillis();
+        ServerLevel overworld = server.overworld();
+        java.util.Iterator<Map.Entry<String, RaidState>> it = ACTIVE_RAIDS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, RaidState> e = it.next();
+            RaidState raid = e.getValue();
+            if (now < raid.endAt) {
+                continue;
+            }
+            it.remove();
+            LOGGER.info("[villagewar] 袭击收尾 {}", e.getKey());
+            GrowthStore.Entry entry = GrowthStore.all().get(e.getKey());
+            if (entry != null) {
+                notify(overworld, new BlockPos(entry.lastX, overworld.getSharedSpawnPos().getY(), entry.lastZ),
+                        "袭击结束了");
             }
         }
     }
