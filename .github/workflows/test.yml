@@ -7,6 +7,9 @@ on:
   push:
     branches: [ main, master ]
 
+permissions:
+  contents: write
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -70,7 +73,12 @@ jobs:
           tail -30 server.log
 
       - name: Run RCON smoke test
-        run: node scripts/rcon-test.mjs 127.0.0.1 25575 test123
+        run: |
+          set +e
+          node scripts/rcon-test.mjs 127.0.0.1 25575 test123 > /tmp/test.log 2>&1
+          echo $? > /tmp/test.exit
+          cat /tmp/test.log
+          exit $(cat /tmp/test.exit)
 
       - name: Check server log for crashes
         if: always()
@@ -82,6 +90,26 @@ jobs:
           if grep -qE "Encountered an unexpected exception|Exception in server tick loop" server/server.log; then
             echo "发现服务端崩溃"; exit 1
           fi
+
+      - name: Publish test report to branch
+        if: always()
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/report
+          cp /tmp/test.log /tmp/report/ 2>/dev/null || true
+          tail -200 server/server.log > /tmp/report/server-tail.log 2>/dev/null || true
+          cp server/crash-reports/* /tmp/report/ 2>/dev/null || echo "no crash reports" > /tmp/report/crash-none.txt
+          cp server/server.properties /tmp/report/ 2>/dev/null || true
+          ls -la server/mods > /tmp/report/mods.txt 2>/dev/null || true
+          git checkout -f --orphan test-report || true
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          rm -rf build .gradle src gradle* settings.gradle* .github scripts README.md TEMPLATE_LICENSE.txt server 2>/dev/null || true
+          cp -r /tmp/report/* .
+          git add -A
+          git commit -m "smoke test report ${{ github.run_number }}" || true
+          git push -f origin test-report || true
 
       - name: Upload logs
         if: always()
