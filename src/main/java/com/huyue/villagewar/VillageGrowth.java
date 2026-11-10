@@ -219,8 +219,13 @@ public final class VillageGrowth {
 
     /** `/villagewar raid` 用：立刻在当前玩家附近的村子开一场袭击（不等计时器）。 */
     public static boolean forceRaid(ServerLevel level, ServerPlayer player) {
+        return forceRaidAt(level, player.blockPosition());
+    }
+
+    /** 测试用：按坐标找附近的村子开一场袭击（控制台也能调，不需要玩家）。 */
+    public static boolean forceRaidAt(ServerLevel level, BlockPos origin) {
         List<Villager> villagers = level.getEntitiesOfClass(Villager.class,
-                player.getBoundingBox().inflate(RADIUS), Villager::isAlive);
+                new net.minecraft.world.phys.AABB(origin).inflate(RADIUS), Villager::isAlive);
         if (villagers.size() < MIN_VILLAGERS) {
             return false;
         }

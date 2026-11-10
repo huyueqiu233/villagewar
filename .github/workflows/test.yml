@@ -1,0 +1,94 @@
+name: Smoke Test
+
+# 无界面服务端冒烟测试：装 NeoForge 服务端 → 放 mod → 用 RCON 跑命令，
+# 验证「mod 能加载 / 村庄能识别 / 袭击能开打 / 不崩」。手感类平衡还要人玩。
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build mod
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon
+
+      - name: Install NeoForge server
+        run: |
+          set -e
+          curl -fsSL -o installer.jar https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.176/neoforge-21.1.176-installer.jar
+          mkdir -p server
+          java -jar installer.jar --installServer server
+          ls -la server | head -20
+
+      - name: Configure server
+        run: |
+          set -e
+          cd server
+          echo "eula=true" > eula.txt
+          printf '%s\n' \
+            'online-mode=false' \
+            'level-type=minecraft\:flat' \
+            'level-seed=4242' \
+            'spawn-protection=0' \
+            'max-tick-time=-1' \
+            'enable-rcon=true' \
+            'rcon.port=25575' \
+            'rcon.password=test123' \
+            'view-distance=6' \
+            'simulation-distance=4' > server.properties
+          mkdir -p mods
+          cp ../build/libs/*.jar mods/ 2>/dev/null || true
+          ls -la mods
+
+      - name: Start server
+        run: |
+          set -e
+          cd server
+          chmod +x run.sh
+          nohup ./run.sh nogui > server.log 2>&1 &
+          echo $! > server.pid
+          for i in $(seq 1 90); do
+            if grep -q "Done (" server.log; then echo "server up after ${i}0s"; break; fi
+            sleep 10
+          done
+          tail -30 server.log
+
+      - name: Run RCON smoke test
+        run: node scripts/rcon-test.mjs 127.0.0.1 25575 test123
+
+      - name: Check server log for crashes
+        if: always()
+        run: |
+          echo '--- exceptions in log ---'
+          grep -nE "Exception|ERROR|Caused by" server/server.log | head -40 || true
+          echo '--- villagewar log lines ---'
+          grep -n "villagewar" server/server.log | head -20 || true
+          if grep -qE "Encountered an unexpected exception|Exception in server tick loop" server/server.log; then
+            echo "发现服务端崩溃"; exit 1
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs
+          path: |
+            server/server.log
+            server/crash-reports/
+          if-no-files-found: ignore

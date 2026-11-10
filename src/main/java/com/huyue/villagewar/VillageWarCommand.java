@@ -25,8 +25,11 @@ public final class VillageWarCommand {
                 }))
                 .then(Commands.literal("raid").executes(ctx -> {
                     CommandSourceStack source = ctx.getSource();
-                    ServerPlayer player = source.getPlayerOrException();
-                    boolean started = VillageGrowth.forceRaid(player.serverLevel(), player);
+                    ServerPlayer player = source.getPlayer();
+                    net.minecraft.server.level.ServerLevel level = source.getLevel();
+                    // 控制台没有玩家：用世界出生点当原点，方便自动化测试
+                    net.minecraft.core.BlockPos origin = player != null ? player.blockPosition() : level.getSharedSpawnPos();
+                    boolean started = VillageGrowth.forceRaidAt(level, origin);
                     source.sendSuccess(() -> Component.literal(started
                             ? "袭击已开始：附近村子进入了战斗"
                             : "没能开打：附近村民不足 3 个，或者这个村子已经在打了"), false);
