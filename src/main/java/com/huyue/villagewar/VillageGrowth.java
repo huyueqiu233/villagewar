@@ -222,8 +222,10 @@ public final class VillageGrowth {
         ServerLevel level = server.overworld();
         long now = System.currentTimeMillis();
         String dim = level.dimension().location().toString();
+        LOGGER.info("[villagewar][war] tick：玩家 {} 个", level.players().size());
         for (ServerPlayer player : level.players()) {
             Faction playerFaction = FactionSpawn.factionOf(player);
+            LOGGER.info("[villagewar][war] 玩家 {} 势力={}", player.getName().getString(), playerFaction == null ? "无" : playerFaction.id);
             if (playerFaction == null) {
                 continue;
             }

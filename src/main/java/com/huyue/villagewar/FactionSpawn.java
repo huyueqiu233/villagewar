@@ -26,12 +26,20 @@ public final class FactionSpawn {
     }
 
     public static Faction factionOf(ServerPlayer player) {
+        Faction stored = FactionStore.get(player.getUUID());
+        if (stored != null) {
+            return stored;
+        }
         var tag = player.getPersistentData();
         return tag.contains(KEY) ? Faction.byId(tag.getString(KEY)) : null;
     }
 
     public static void setFaction(ServerPlayer player, Faction faction) {
+        FactionStore.set(player.getUUID(), faction);
         player.getPersistentData().putString(KEY, faction.id);
+        if (player.getServer() != null) {
+            FactionStore.saveIfDirty(player.getServer());
+        }
     }
 
     /** 在首都周围 30 格内找一个能站人的地表点。 */
@@ -60,6 +68,7 @@ public final class FactionSpawn {
         ServerLevel overworld = event.getServer().overworld();
         // 先读存档，再登记首都村；反过来会被 load() 清空
         VillageGrowth.ensureLoaded(event.getServer());
+        FactionStore.load(event.getServer());
         for (Faction faction : Faction.values()) {
             CapitalBuilder.ensureBuilt(overworld, faction);
             // 登记成村子，玩家不在时也能靠离屏模拟慢慢长
