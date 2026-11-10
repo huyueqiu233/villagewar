@@ -99,7 +99,7 @@ for (let i = 0; i < 18; i += 1) {           // 最多等 90 秒
 }
 check('村庄被识别', count >= 1, `count=${count} :: ${last}`);
 
-const raidMsg = await exec('/villagewar raid');
+const raidMsg = await exec('execute at TestBot run villagewar raid');
 check('raid 能开打', /袭击已开始/.test(raidMsg), raidMsg);
 
 console.log('等 40 秒观察袭击…');

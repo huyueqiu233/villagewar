@@ -27,10 +27,9 @@ public final class VillageWarCommand {
                 }))
                 .then(Commands.literal("raid").executes(ctx -> {
                     CommandSourceStack source = ctx.getSource();
-                    ServerPlayer player = source.getPlayer();
                     net.minecraft.server.level.ServerLevel level = source.getLevel();
-                    // 控制台没有玩家：用世界出生点当原点，方便自动化测试
-                    net.minecraft.core.BlockPos origin = player != null ? player.blockPosition() : level.getSharedSpawnPos();
+                    // 用命令来源的位置：控制台可以用 `execute at <玩家> run villagewar raid`
+                    net.minecraft.core.BlockPos origin = net.minecraft.core.BlockPos.containing(source.getPosition());
                     boolean started = VillageGrowth.forceRaidAt(level, origin);
                     source.sendSuccess(() -> Component.literal(started
                             ? "袭击已开始：附近村子进入了战斗"
