@@ -1,0 +1,11 @@
+{
+  "name": "villagewar-smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "mineflayer": "^4.20.0"
+  }
+}
