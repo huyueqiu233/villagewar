@@ -220,6 +220,10 @@ public final class VillageGrowth {
      * 站在自家村子 → 敌方军队来袭；站在敌方村子 → 自己势力出兵。
      */
     private static void factionWarTick(MinecraftServer server) {
+        // 营地被端掉期间不出兵：这是玩家反攻的回报
+        if (!PillagerCamp.isBuilt()) {
+            return;
+        }
         ServerLevel level = server.overworld();
         long now = System.currentTimeMillis();
         String dim = level.dimension().location().toString();
@@ -545,6 +549,25 @@ public final class VillageGrowth {
     // ── 建造 ────────────────────────────────────────────────────────────────
 
     private static String tryBuild(ServerLevel level, BlockPos center, GrowthStore.Entry entry) {
+        // 村子长到 2 座房子以后，开始修防御：围墙 / 瞭望塔 / 守卫小屋
+        if (entry.houses >= 2 && level.getRandom().nextInt(100) < 30) {
+            BlockPos spot = findSpot(level, center, entry.houses % 2);
+            if (spot != null) {
+                int pick = level.getRandom().nextInt(3);
+                if (pick == 0) {
+                    placeWallRing(level, center);
+                    return "一圈围墙";
+                }
+                if (pick == 1 && entry.houses >= 3) {
+                    placeWatchtower(level, spot);
+                    entry.buildings.add(new int[]{spot.getX(), spot.getY(), spot.getZ()});
+                    return "一座瞭望塔";
+                }
+                placeGuardPost(level, spot, center, entry.houses);
+                entry.buildings.add(new int[]{spot.getX(), spot.getY(), spot.getZ()});
+                return "一间守卫小屋";
+            }
+        }
         int base = (entry.houses + level.getRandom().nextInt(2)) % 3;
         for (int i = 0; i < 3; i++) {
             int type = (base + i) % 3;
@@ -779,6 +802,80 @@ public final class VillageGrowth {
     }
 
     /** 房子四角外面插火把：夜里少刷僵尸， villagers 不容易被偷袭。 */
+    /** 村子外围一圈木栅栏（留四个门），灯笼点缀。 */
+    private static void placeWallRing(ServerLevel level, BlockPos center) {
+        int r = 18;
+        for (int d = -r; d <= r; d++) {
+            for (int sign : new int[]{-1, 1}) {
+                BlockPos a = center.offset(d, 0, sign * r);
+                BlockPos b = center.offset(sign * r, 0, d);
+                for (BlockPos p : new BlockPos[]{a, b}) {
+                    boolean gate = Math.abs(d) <= 1;
+                    if (gate) {
+                        continue;
+                    }
+                    level.setBlockAndUpdate(p.below(), Blocks.COBBLESTONE.defaultBlockState());
+                    level.setBlockAndUpdate(p, Blocks.OAK_FENCE.defaultBlockState());
+                    if ((d & 7) == 0) {
+                        level.setBlockAndUpdate(p.above(), Blocks.LANTERN.defaultBlockState());
+                    }
+                }
+            }
+        }
+    }
+
+    /** 瞭望塔：石砖塔身 + 顶部平台。 */
+    private static void placeWatchtower(ServerLevel level, BlockPos base) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.COBBLESTONE.defaultBlockState());
+            }
+        }
+        for (int y = 0; y <= 7; y++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                    if (edge) {
+                        level.setBlockAndUpdate(base.offset(dx, y, dz), Blocks.STONE_BRICKS.defaultBlockState());
+                    } else if (y == 7) {
+                        level.setBlockAndUpdate(base.offset(dx, y, dz), Blocks.SPRUCE_PLANKS.defaultBlockState());
+                    }
+                }
+            }
+        }
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                boolean edge = Math.abs(dx) == 3 || Math.abs(dz) == 3;
+                if (edge) {
+                    level.setBlockAndUpdate(base.offset(dx, 8, dz), Blocks.OAK_FENCE.defaultBlockState());
+                }
+            }
+        }
+        level.setBlockAndUpdate(base.offset(0, 8, 0), Blocks.LANTERN.defaultBlockState());
+    }
+
+    /** 守卫小屋：额外补铁傀儡（上限随房屋数）。 */
+    private static void placeGuardPost(ServerLevel level, BlockPos base, BlockPos center, int houses) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.COBBLESTONE.defaultBlockState());
+                if (edge) {
+                    level.setBlockAndUpdate(base.offset(dx, 0, dz), Blocks.STONE_BRICKS.defaultBlockState());
+                    level.setBlockAndUpdate(base.offset(dx, 1, dz), Blocks.STONE_BRICKS.defaultBlockState());
+                }
+            }
+        }
+        level.setBlockAndUpdate(base.offset(0, 2, 0), Blocks.LANTERN.defaultBlockState());
+        AABB box = new AABB(center.getX() - 48, center.getY() - 48, center.getZ() - 48,
+                center.getX() + 48, center.getY() + 48, center.getZ() + 48);
+        int golems = level.getEntitiesOfClass(IronGolem.class, box, IronGolem::isAlive).size();
+        int cap = Math.min(10, 2 + houses / 2);
+        if (golems < cap) {
+            spawnAt(level, base, EntityType.IRON_GOLEM, 3);
+        }
+    }
+
     private static void placeOutdoorTorches(Level level, BlockPos base, int distance) {
         int[][] offsets = {{-distance, -distance}, {-distance, distance}, {distance, -distance}, {distance, distance}};
         for (int[] o : offsets) {

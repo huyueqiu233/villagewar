@@ -79,6 +79,10 @@ public final class PillagerCamp {
         }
     }
 
+    public static boolean isBuilt() {
+        return data.built;
+    }
+
     public static int level() {
         return data.level;
     }
