@@ -112,6 +112,7 @@ public final class VillageGrowth {
                 growAround(level, player);
             }
         }
+        PillagerCamp.tick(server);
         sweepRaids(server);
         simulateRemote(System.currentTimeMillis());
         warCounter++;
@@ -249,13 +250,11 @@ public final class VillageGrowth {
                 if (last != null && now - last < WAR_COOLDOWN_MS) {
                     continue;
                 }
-                Faction attacker = owner == playerFaction
-                        ? (playerFaction == Faction.CRIMSON ? Faction.AZURE : Faction.CRIMSON)
-                        : playerFaction;
+                Faction attacker = null; // 掠夺者阵营
                 BlockPos center = new BlockPos(v.lastX, player.getBlockY(), v.lastZ);
                 WAR_COOLDOWN.put(key, now);
-                LOGGER.info("[villagewar] {} 进攻 {}（{}）", attacker.display, key, owner.display);
-                startRaid(level, center, key, v, attacker.display);
+
+                startRaid(level, center, key, v, null);
             }
         }
     }
@@ -469,7 +468,8 @@ public final class VillageGrowth {
         RandomSource random = level.getRandom();
         int houses = entry.houses;
 
-        int pillagers = Math.min(15, 3 + houses / 2 + entry.raids / 2 + wave);
+        int campBonus = PillagerCamp.level() * 2;
+        int pillagers = Math.min(22, 3 + houses / 2 + entry.raids / 2 + wave + campBonus);
         for (int i = 0; i < pillagers; i++) {
             equipSpawned(spawnAt(level, center, EntityType.PILLAGER, 22 + random.nextInt(8)));
         }
@@ -481,6 +481,9 @@ public final class VillageGrowth {
         }
         if (houses >= 8 && wave >= 2) {
             spawnAt(level, center, EntityType.EVOKER, 24 + random.nextInt(6));
+        }
+        if (PillagerCamp.level() >= 4 && wave >= 2) {
+            spawnAt(level, center, EntityType.PILLAGER, 20 + random.nextInt(6));
         }
         if (houses >= 12 && wave >= 3) {
             spawnAt(level, center, EntityType.RAVAGER, 24 + random.nextInt(6));

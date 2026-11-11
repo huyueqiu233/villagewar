@@ -25,5 +25,8 @@ public final class VillageWar {
         // 首次进服发势力选择；死亡重生回势力范围
         NeoForge.EVENT_BUS.addListener(FactionSpawn::onLogin);
         NeoForge.EVENT_BUS.addListener(FactionSpawn::onRespawn);
+        // 掠夺者营地：开服建造、被打掉战旗
+        NeoForge.EVENT_BUS.addListener(PillagerCamp::onServerStarted);
+        NeoForge.EVENT_BUS.addListener(PillagerCamp::onBlockBreak);
     }
 }

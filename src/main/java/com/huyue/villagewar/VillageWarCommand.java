@@ -53,6 +53,10 @@ public final class VillageWarCommand {
                                     FactionSpawn.join(player, faction);
                                     return 1;
                                 })))
+                .then(Commands.literal("camp").executes(ctx -> {
+                    ctx.getSource().sendSuccess(() -> Component.literal(PillagerCamp.describe()), false);
+                    return 1;
+                }))
                 .then(Commands.literal("wartick").executes(ctx -> {
                     VillageGrowth.forceWarTick(ctx.getSource().getServer());
                     ctx.getSource().sendSuccess(() -> Component.literal("已评估一次势力战争"), false);

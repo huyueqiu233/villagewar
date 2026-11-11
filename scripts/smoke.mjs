@@ -86,6 +86,10 @@ await exec('gamemode creative TestBot');
 const facOut = await exec('execute as TestBot run villagewar faction');
 check('势力被记录', /苍蓝/.test(facOut), facOut);
 
+/* ---------- 掠夺者营地 ---------- */
+const campOut = await exec('/villagewar camp');
+check('掠夺者营地已生成', /战旗/.test(campOut) && /等级/.test(campOut), campOut);
+
 /* ---------- 等首都长房子 ---------- */
 await sleep(15000);
 const baseStatus = await exec('/villagewar status');
