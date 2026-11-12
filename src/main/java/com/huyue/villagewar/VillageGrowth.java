@@ -599,6 +599,30 @@ public final class VillageGrowth {
         return null;
     }
 
+    /** 清掉地基范围内的树、树叶、草和花（只清可替换的植被，不动石头/地面）。 */
+    private static boolean clearVegetation(Level level, BlockPos base, int halfW, int halfD, int height) {
+        boolean cleared = false;
+        for (int dx = -halfW; dx <= halfW; dx++) {
+            for (int dz = -halfD; dz <= halfD; dz++) {
+                for (int dy = 0; dy <= height; dy++) {
+                    BlockPos p = base.offset(dx, dy, dz);
+                    BlockState st = level.getBlockState(p);
+                    if (st.isAir()) {
+                        continue;
+                    }
+                    boolean plant = st.is(net.minecraft.tags.BlockTags.LEAVES)
+                            || st.is(net.minecraft.tags.BlockTags.LOGS)
+                            || st.canBeReplaced();
+                    if (plant) {
+                        level.setBlockAndUpdate(p, Blocks.AIR.defaultBlockState());
+                        cleared = true;
+                    }
+                }
+            }
+        }
+        return cleared;
+    }
+
     /** 地基范围必须是实地（不是水、不是悬空），否则房子会半悬在水面上、村民也走不过去。 */
     private static boolean groundIsLand(ServerLevel level, BlockPos base, int halfW, int halfD) {
         for (int dx = -halfW; dx <= halfW; dx++) {
@@ -630,8 +654,14 @@ public final class VillageGrowth {
             BlockPos base = new BlockPos(x, y, z);
             // 先试宽松的 2 格净空，实在放不下就退回 1 格（村子很密时不至于一直卡住）
             int margin = attempt < 60 ? 2 : 1;
-            if (areaIsClear(level, base, halfW, halfD, margin) && groundIsLand(level, base, halfW, halfD)) {
-                return base;
+            if (groundIsLand(level, base, halfW, halfD)) {
+                if (areaIsClear(level, base, halfW, halfD, margin)) {
+                    return base;
+                }
+                // 树林里：清掉树/草再判断，不然一整片森林都建不了房子
+                if (clearVegetation(level, base, halfW, halfD, margin) && areaIsClear(level, base, halfW, halfD, margin)) {
+                    return base;
+                }
             }
         }
         return null;
@@ -944,11 +974,13 @@ public final class VillageGrowth {
                                     net.minecraft.world.level.block.state.properties.SlabType.TOP)
                             .setValue(net.minecraft.world.level.block.SlabBlock.WATERLOGGED, true));
                     level.setBlockAndUpdate(base, Blocks.COMPOSTER.defaultBlockState());
-                    // 压住堆肥桶的完整方块（两格）+ 两根火把
-                    level.setBlockAndUpdate(base.above(), Blocks.STONE_BRICKS.defaultBlockState());
-                    level.setBlockAndUpdate(base.above().east(), Blocks.STONE_BRICKS.defaultBlockState());
-                    level.setBlockAndUpdate(base.above(2), Blocks.TORCH.defaultBlockState());
-                    level.setBlockAndUpdate(base.above(2).east(), Blocks.TORCH.defaultBlockState());
+                    // 压住堆肥桶：一个完整方块，前后各插一根墙上的火把
+                    BlockPos cap = base.above();
+                    level.setBlockAndUpdate(cap, Blocks.STONE_BRICKS.defaultBlockState());
+                    level.setBlockAndUpdate(cap.north(), Blocks.WALL_TORCH.defaultBlockState()
+                            .setValue(net.minecraft.world.level.block.WallTorchBlock.FACING, net.minecraft.core.Direction.NORTH));
+                    level.setBlockAndUpdate(cap.south(), Blocks.WALL_TORCH.defaultBlockState()
+                            .setValue(net.minecraft.world.level.block.WallTorchBlock.FACING, net.minecraft.core.Direction.SOUTH));
                     continue;
                 }
                 level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.FARMLAND.defaultBlockState());

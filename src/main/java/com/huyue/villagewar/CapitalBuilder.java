@@ -56,6 +56,19 @@ public final class CapitalBuilder {
                 }
             }
         }
+        // 1.5) 把首都周围 41x41 的树清掉，不然村子没地方盖房子
+        for (int dx = -20; dx <= 20; dx++) {
+            for (int dz = -20; dz <= 20; dz++) {
+                for (int dy = 1; dy <= 8; dy++) {
+                    net.minecraft.core.BlockPos p = center.offset(dx, dy, dz);
+                    net.minecraft.world.level.block.state.BlockState st = level.getBlockState(p);
+                    if (st.is(net.minecraft.tags.BlockTags.LEAVES) || st.is(net.minecraft.tags.BlockTags.LOGS) || st.canBeReplaced()) {
+                        level.setBlockAndUpdate(p, Blocks.AIR.defaultBlockState());
+                    }
+                }
+            }
+        }
+
         // 2) 大厅 15x11：石砖墙 + 云杉台阶屋顶
         int hx = 7;
         int hz = 5;
