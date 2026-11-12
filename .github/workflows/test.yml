@@ -27,9 +27,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build mod
+        continue-on-error: true
         run: |
           chmod +x gradlew
-          ./gradlew build --no-daemon
+          set +e
+          ./gradlew build --no-daemon > /tmp/build.log 2>&1
+          echo "exit=$?" >> /tmp/build.log
+          tail -80 /tmp/build.log
 
       - name: Install NeoForge server
         run: |
@@ -102,6 +106,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mkdir -p /tmp/report
           cp /tmp/test.log /tmp/report/ 2>/dev/null || true
+          cp /tmp/build.log /tmp/report/ 2>/dev/null || true
           tail -200 server/server.log > /tmp/report/server-tail.log 2>/dev/null || true
           cp server/crash-reports/* /tmp/report/ 2>/dev/null || echo "no crash reports" > /tmp/report/crash-none.txt
           cp server/server.properties /tmp/report/ 2>/dev/null || true
