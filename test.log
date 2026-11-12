@@ -1,0 +1,44 @@
+PASS  status 命令可用 :: 村庄争霸：已知村庄 2 个
+ - minecraft:overworld@76,0 成长点=60 房屋=0 被袭击=0 次
+ - minecraft:overworld@-80,21 成长点=60 房屋=0 被袭击=0 次
+
+PartialReadError: Read error for undefined : Missing characters in string, found size is 108271 expected size was 114153
+    at new ExtendableError (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/utils.js:63:13)
+    at new PartialReadError (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/utils.js:70:5)
+    at Object.string (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:107:15)
+    at eval (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:891:65)
+    at eval (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:893:11)
+    at Object.ArmorTrimMaterial (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:898:9)
+    at eval (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:503:55)
+    at eval (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:506:15)
+    at eval (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:518:13)
+    at Object.SlotComponent (eval at compile (/home/runner/work/villagewar/villagewar/node_modules/protodef/src/compiler.js:262:12), <anonymous>:720:9)
+bot spawn at 4.5 -60.0 6.5
+PASS  机器人成功进服 :: 5,-60,7
+PASS  选势力后离开出生点 :: 移动 1334 格 → -1287,344
+PASS  势力被记录 :: 你属于 苍蓝
+
+PASS  选过势力不能换 :: 你已经加入 苍蓝，选过就不能换了
+
+PASS  掠夺者营地已生成 :: 掠夺者营地：等级 0/5，战旗 0,-58,1500
+
+PASS  两个首都都登记成村子 :: count=2 :: 村庄争霸：已知村庄 2 个
+ - minecraft:overworld@76,0 成长点=69 房屋=0 被袭击=0 次
+ - minecraft:overworld@-80,21 成长点=15 房屋=1 被袭击=0 次
+
+PASS  raid 能开打 :: 袭击已开始：附近村子进入了战斗
+
+PASS  袭击期间服务器仍响应 :: 村庄争霸：已知村庄 2 个
+ - minecraft:overworld@76,0 成长点=78 房屋=0 被袭击=0 次
+ - minecraft:overworld@-80,21 成长点=36 房屋=1 被袭击=1 次
+
+PASS  袭击被记录 :: 村庄争霸：已知村庄 2 个
+ - minecraft:overworld@76,0 成长点=78 房屋=0 被袭击=0 次
+ - minecraft:overworld@-80,21 成长点=36 房屋=1 被袭击=1 次
+
+等 170 秒让这场袭击收尾…
+PASS  势力战争能触发 :: 已评估一次势力战争
+ | 前=1 后=2
+PASS  村子没有被玩家走动拆散 :: base=2 final=2
+
+全部通过

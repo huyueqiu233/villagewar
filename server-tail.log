@@ -1,0 +1,89 @@
+[32m[14:20:26.237] [main/INFO] [Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserver, --fml.neoForgeVersion, 21.1.176, --fml.fmlVersion, 4.0.39, --fml.mcVersion, 1.21.1, --fml.neoFormVersion, 20240808.144430, nogui] 
+[m[32m[14:20:26.240] [main/INFO] [Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.13+9-LTS 
+[m[32m[14:20:26.242] [main/INFO] [Launcher/MODLAUNCHER]: ModLauncher 11.0.4+main.d2e20e43 starting: java version 21.0.13 by Eclipse Adoptium; OS Linux arch amd64 version 7.0.0-1019-azure 
+[m[32m[14:20:26.370] [main/INFO] [loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserver 
+[m[32m[14:20:26.425] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/home/runner/work/villagewar/villagewar/server/libraries/net/fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/sponge-mixin-0.15.2+mixin.0.8.7.jar%2373!/ Service=ModLauncher Env=SERVER 
+[m[32m[14:20:26.801] [main/INFO] [loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "server-1.21.1-20240808.144430-srg.jar" [locator: production server provider +net.neoforged:neoforge:21.1.176:server] 
+[m[32m[14:20:26.823] [main/INFO] [loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "neoforge-21.1.176-universal.jar" [locator: PathBasedLocator[name=neoforge, paths=[libraries/net/neoforged/neoforge/21.1.176/neoforge-21.1.176-universal.jar]], reader: mod manifest] 
+[m[32m[14:20:26.833] [main/INFO] [loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "villagewar-0.11.4.jar" [locator: {mods folder locator at /home/runner/work/villagewar/villagewar/server/mods}, reader: mod manifest] 
+[m[32m[14:20:26.943] [main/INFO] [loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 2 dependencies adding them to mods collection 
+[m[32m[14:20:26.943] [main/INFO] [loading.moddiscovery.ModDiscoverer/SCAN]: Found gamelibrary file "mixinextras-neoforge-0.4.1.jar" [parent: neoforge-21.1.176-universal.jar, locator: jarinjar, reader: mod manifest] 
+[m[32m[14:20:26.943] [main/INFO] [loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "net.neoforged.neoforge-coremods-21.1.176.jar" [parent: neoforge-21.1.176-universal.jar, locator: jarinjar, reader: mod manifest] 
+[m[32m[14:20:26.945] [main/INFO] [loading.moddiscovery.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.176 (neoforge)
+		æåºäºé¸ Village War 0.11.4 (villagewar) 
+[m[32m[14:20:27.570] [main/INFO] [LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserver' with arguments [nogui] 
+[mWARN StatusConsoleListener Advanced terminal features are not available in this environment
+[14:20:29] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.4.1).
+[14:20:34] [modloading-worker-0/INFO] [ne.ne.ne.co.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.176, for MC 1.21.1
+[14:20:34] [main/INFO] [mojang/YggdrasilAuthenticationService]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[14:20:34] [main/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/home/runner/work/villagewar/villagewar/server/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23118!/assets/.mcassetsroot' uses unexpected schema
+[14:20:34] [main/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/home/runner/work/villagewar/villagewar/server/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23118!/data/.mcassetsroot' uses unexpected schema
+[14:20:35] [main/INFO] [minecraft/Main]: No existing world data, creating new world
+[14:20:35] [main/ERROR] [minecraft/DedicatedServerProperties]: No key layers in MapLike[{}]
+[14:20:36] [main/INFO] [minecraft/RecipeManager]: Loaded 1290 recipes
+[14:20:36] [main/INFO] [minecraft/AdvancementTree]: Loaded 1399 advancements
+[14:20:37] [Server thread/INFO] [minecraft/DedicatedServer]: Starting minecraft server version 1.21.1
+[14:20:37] [Server thread/INFO] [minecraft/DedicatedServer]: Loading properties
+[14:20:37] [Server thread/INFO] [minecraft/DedicatedServer]: Default game type: SURVIVAL
+[14:20:37] [Server thread/INFO] [minecraft/MinecraftServer]: Generating keypair
+[14:20:37] [Server thread/INFO] [minecraft/DedicatedServer]: Starting Minecraft server on *:25565
+[14:20:37] [Server thread/INFO] [minecraft/ServerConnectionListener]: Using epoll channel type
+[14:20:37] [Server thread/WARN] [minecraft/DedicatedServer]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[14:20:37] [Server thread/WARN] [minecraft/DedicatedServer]: The server will make no attempt to authenticate usernames. Beware.
+[14:20:37] [Server thread/WARN] [minecraft/DedicatedServer]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[14:20:37] [Server thread/WARN] [minecraft/DedicatedServer]: To change this, set "online-mode" to "true" in the server.properties file.
+[14:20:37] [Server thread/INFO] [minecraft/DedicatedServer]: Preparing level "world"
+[14:20:38] [Server thread/INFO] [minecraft/MinecraftServer]: Preparing start region for dimension minecraft:overworld
+[14:20:38] [Worker-Main-3/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 2%
+[14:20:38] [Server thread/INFO] [minecraft/LoggerChunkProgressListener]: Time elapsed: 293 ms
+[14:20:38] [Server thread/INFO] [minecraft/DedicatedServer]: Done (0.891s)! For help, type "help"
+[14:20:38] [Server thread/INFO] [minecraft/DedicatedServer]: Starting remote control listener
+[14:20:38] [Server thread/INFO] [minecraft/GenericThread]: Thread RCON Listener started
+[14:20:38] [Server thread/INFO] [minecraft/RconThread]: RCON running on 0.0.0.0:25575
+[14:20:38] [Server thread/INFO] [ne.ne.ne.se.pe.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[14:20:38] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] 成长系统已加载
+[14:20:39] [Server thread/INFO] [co.hu.vi.CapitalBuilder/]: [villagewar] 赤潮 首都已建成 BlockPos{x=1224, y=-56, z=0}
+[14:20:42] [Server thread/INFO] [co.hu.vi.CapitalBuilder/]: [villagewar] 苍蓝 首都已建成 BlockPos{x=-1272, y=-55, z=336}
+[14:20:42] [Server thread/INFO] [co.hu.vi.PillagerCamp/]: [villagewar] 掠夺者营地已建成 BlockPos{x=0, y=-60, z=1500}（等级 0）
+[14:20:45] [Server thread/WARN] [minecraft/MinecraftServer]: Can't keep up! Is the server overloaded? Running 2024ms or 40 ticks behind
+[14:20:45] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a DUMMY block entity @ BlockPos{x=1233, y=-56, z=9} but found not block entity block Block{minecraft:air} at location
+[14:20:45] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a block entity for block Block{minecraft:air} but failed at location BlockPos{x=1233, y=-56, z=9}
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a DUMMY block entity @ BlockPos{x=1231, y=-56, z=9} but found not block entity block Block{minecraft:air} at location
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a block entity for block Block{minecraft:air} but failed at location BlockPos{x=1231, y=-56, z=9}
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a DUMMY block entity @ BlockPos{x=1231, y=-56, z=3} but found not block entity block Block{minecraft:air} at location
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a block entity for block Block{minecraft:air} but failed at location BlockPos{x=1231, y=-56, z=3}
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a DUMMY block entity @ BlockPos{x=1231, y=-56, z=4} but found not block entity block Block{minecraft:air} at location
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a block entity for block Block{minecraft:air} but failed at location BlockPos{x=1231, y=-56, z=4}
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a DUMMY block entity @ BlockPos{x=1231, y=-56, z=8} but found not block entity block Block{minecraft:air} at location
+[14:20:47] [Server thread/WARN] [minecraft/LevelChunk]: Tried to load a block entity for block Block{minecraft:air} but failed at location BlockPos{x=1231, y=-56, z=8}
+[14:20:53] [RCON Listener #1/INFO] [minecraft/GenericThread]: Thread RCON Client /127.0.0.1 started
+[14:20:54] [Server thread/INFO] [minecraft/PlayerList]: TestBot[/127.0.0.1:53986] logged in with entity id 73 at (4.5, -60.0, 6.5)
+[14:20:54] [Server thread/INFO] [minecraft/MinecraftServer]: TestBot joined the game
+[14:21:02] [Server thread/INFO] [minecraft/MinecraftServer]: [Rcon: Set TestBot's game mode to Creative Mode]
+[14:21:04] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] minecraft:overworld@-80,21 在 BlockPos{x=-1262, y=-58, z=339} 建了一块农田（第 1 个）
+[14:21:17] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] 袭击开始 minecraft:overworld@-80,21（第 1 次，房子 1 座，铁傀儡 1 个）
+[14:22:24] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] minecraft:overworld@-80,21 在 BlockPos{x=-1278, y=-57, z=337} 建了一间小屋（第 2 个）
+[14:23:12] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Villager'/151, l='ServerLevel[world]', x=-1352.98, y=-60.00, z=283.81] died, message: 'Villager was shot by Pillager'
+[14:23:34] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Farmer'/164, l='ServerLevel[world]', x=-1292.92, y=-60.00, z=288.50] died, message: 'Farmer was shot by Pillager'
+[14:23:48] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Fletcher'/167, l='ServerLevel[world]', x=-1276.29, y=-53.00, z=339.52] died, message: 'Fletcher was shot by Pillager'
+[14:23:54] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] 袭击结束 minecraft:overworld@-80,21
+[14:23:57] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Nitwit'/155, l='ServerLevel[world]', x=-1261.60, y=-60.00, z=311.53] died, message: 'Nitwit was shot by Pillager'
+[14:23:57] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Villager'/152, l='ServerLevel[world]', x=-1270.75, y=-60.00, z=290.25] died, message: 'Villager was shot by Pillager'
+[14:24:11] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Toolsmith'/161, l='ServerLevel[world]', x=-1275.77, y=-53.44, z=332.89] died, message: 'Toolsmith was shot by Pillager'
+[14:24:12] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Farmer'/154, l='ServerLevel[world]', x=-1273.97, y=-60.00, z=329.51] died, message: 'Farmer was shot by Pillager'
+[14:24:32] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Fletcher'/170, l='ServerLevel[world]', x=-1276.56, y=-54.00, z=340.42] died, message: 'Fletcher was shot by Pillager'
+[14:24:34] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] minecraft:overworld@-80,21 在 BlockPos{x=-1264, y=-56, z=327} 建了一间小屋（第 3 个）
+[14:24:37] [Server thread/INFO] [co.hu.vi.VillageGrowth/]: [villagewar] 袭击开始 minecraft:overworld@-80,21（第 2 次，房子 3 座，铁傀儡 2 个）
+[14:24:40] [Server thread/INFO] [minecraft/Villager]: Villager Villager['Weaponsmith'/166, l='ServerLevel[world]', x=-1228.49, y=-60.00, z=314.54] died, message: 'Weaponsmith was shot by Pillager'
+[14:24:43] [Server thread/INFO] [minecraft/MinecraftServer]: [Rcon: Stopping the server]
+[14:24:43] [RCON Client /127.0.0.1 #2/INFO] [minecraft/RconClient]: Thread RCON Client /127.0.0.1 shutting down
+[14:24:43] [Server thread/INFO] [minecraft/MinecraftServer]: Stopping server
+[14:24:43] [Server thread/INFO] [minecraft/MinecraftServer]: Saving players
+[14:24:43] [Server thread/INFO] [minecraft/ServerGamePacketListenerImpl]: TestBot lost connection: Disconnected
+[14:24:43] [Server thread/INFO] [minecraft/MinecraftServer]: TestBot left the game
+[14:24:43] [Server thread/INFO] [minecraft/MinecraftServer]: Saving worlds
