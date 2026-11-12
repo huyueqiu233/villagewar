@@ -69,8 +69,7 @@ public final class VillageGrowth {
             Blocks.SMOKER,            // 屠夫
             Blocks.BLAST_FURNACE,     // 盔甲匠
             Blocks.BREWING_STAND,     // 牧师
-            Blocks.GRINDSTONE,        // 武器匠
-            Blocks.COMPOSTER          // 农民
+            Blocks.GRINDSTONE         // 武器匠（堆肥桶只放农田边，不放房子里）
     };
 
     private static int tickCounter = 0;
@@ -773,106 +772,40 @@ public final class VillageGrowth {
         placeOutdoorTorches(level, base, 4);
     }
 
-    private static void placeFarm(Level level, BlockPos base) {
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = -3; dz <= 3; dz++) {
+    /** 大农田（13x13）：中间一条水渠，水渠上铺含水半砖放堆肥桶，其余种作物。 */
+    public static void placeFarm(Level level, BlockPos base) {
+        RandomSource rnd = level.getRandom();
+        int r = 6;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
                 BlockPos p = base.offset(dx, -1, dz);
-                if (dx == 0 && dz == 0) {
+                boolean outer = Math.abs(dx) == r || Math.abs(dz) == r;
+                if (outer) {
+                    level.setBlockAndUpdate(base.offset(dx, 0, dz), Blocks.OAK_FENCE.defaultBlockState());
+                    if ((dx + dz + r) % 6 == 0) {
+                        level.setBlockAndUpdate(base.offset(dx, 1, dz), Blocks.LANTERN.defaultBlockState());
+                    }
+                    continue;
+                }
+                if (Math.abs(dz) <= 1) {
+                    // 水渠：水面上方铺一块含水半砖，堆肥桶放在其中一块半砖上
                     level.setBlockAndUpdate(p, Blocks.WATER.defaultBlockState());
-                } else {
-                    level.setBlockAndUpdate(p, Blocks.FARMLAND.defaultBlockState());
-                    BlockState wheat = Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7);
-                    level.setBlockAndUpdate(p.above(), wheat);
-                }
-            }
-        }
-        // 堆肥桶留给村民认领；灯改挂在四角的栅栏上，不占用工作方块上方
-        level.setBlockAndUpdate(base.offset(-3, -1, -3), Blocks.COMPOSTER.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(3, -1, 3), Blocks.COMPOSTER.defaultBlockState());
-        for (int sx = -1; sx <= 1; sx += 2) {
-            for (int sz = -1; sz <= 1; sz += 2) {
-                BlockPos fence = base.offset(sx * 4, -1, sz * 4);
-                BlockPos lamp = fence.above();
-                if (level.getBlockState(fence).canOcclude() && level.getBlockState(lamp).isAir()) {
-                    level.setBlockAndUpdate(fence, Blocks.OAK_FENCE.defaultBlockState());
-                    level.setBlockAndUpdate(lamp, Blocks.LANTERN.defaultBlockState());
-                }
-            }
-        }
-    }
-
-    /** 房子四角外面插火把：夜里少刷僵尸， villagers 不容易被偷袭。 */
-    /** 村子外围一圈木栅栏（留四个门），灯笼点缀。 */
-    private static void placeWallRing(ServerLevel level, BlockPos center) {
-        int r = 18;
-        for (int d = -r; d <= r; d++) {
-            for (int sign : new int[]{-1, 1}) {
-                BlockPos a = center.offset(d, 0, sign * r);
-                BlockPos b = center.offset(sign * r, 0, d);
-                for (BlockPos p : new BlockPos[]{a, b}) {
-                    boolean gate = Math.abs(d) <= 1;
-                    if (gate) {
-                        continue;
+                    level.setBlockAndUpdate(p.above(),
+                            Blocks.OAK_SLAB.defaultBlockState()
+                                    .setValue(net.minecraft.world.level.block.SlabBlock.WATERLOGGED, true));
+                    if (dx == -3 && dz == 0) {
+                        level.setBlockAndUpdate(p.above(2), Blocks.COMPOSTER.defaultBlockState());
                     }
-                    level.setBlockAndUpdate(p.below(), Blocks.COBBLESTONE.defaultBlockState());
-                    level.setBlockAndUpdate(p, Blocks.OAK_FENCE.defaultBlockState());
-                    if ((d & 7) == 0) {
-                        level.setBlockAndUpdate(p.above(), Blocks.LANTERN.defaultBlockState());
-                    }
+                    continue;
                 }
+                level.setBlockAndUpdate(p, Blocks.FARMLAND.defaultBlockState());
+                BlockState crop = rnd.nextInt(3) == 0
+                        ? Blocks.CARROTS.defaultBlockState().setValue(CropBlock.AGE, 7)
+                        : rnd.nextInt(2) == 0
+                        ? Blocks.POTATOES.defaultBlockState().setValue(CropBlock.AGE, 7)
+                        : Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7);
+                level.setBlockAndUpdate(p.above(), crop);
             }
-        }
-    }
-
-    /** 瞭望塔：石砖塔身 + 顶部平台。 */
-    private static void placeWatchtower(ServerLevel level, BlockPos base) {
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.COBBLESTONE.defaultBlockState());
-            }
-        }
-        for (int y = 0; y <= 7; y++) {
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dz = -2; dz <= 2; dz++) {
-                    boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                    if (edge) {
-                        level.setBlockAndUpdate(base.offset(dx, y, dz), Blocks.STONE_BRICKS.defaultBlockState());
-                    } else if (y == 7) {
-                        level.setBlockAndUpdate(base.offset(dx, y, dz), Blocks.SPRUCE_PLANKS.defaultBlockState());
-                    }
-                }
-            }
-        }
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = -3; dz <= 3; dz++) {
-                boolean edge = Math.abs(dx) == 3 || Math.abs(dz) == 3;
-                if (edge) {
-                    level.setBlockAndUpdate(base.offset(dx, 8, dz), Blocks.OAK_FENCE.defaultBlockState());
-                }
-            }
-        }
-        level.setBlockAndUpdate(base.offset(0, 8, 0), Blocks.LANTERN.defaultBlockState());
-    }
-
-    /** 守卫小屋：额外补铁傀儡（上限随房屋数）。 */
-    private static void placeGuardPost(ServerLevel level, BlockPos base, BlockPos center, int houses) {
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.COBBLESTONE.defaultBlockState());
-                if (edge) {
-                    level.setBlockAndUpdate(base.offset(dx, 0, dz), Blocks.STONE_BRICKS.defaultBlockState());
-                    level.setBlockAndUpdate(base.offset(dx, 1, dz), Blocks.STONE_BRICKS.defaultBlockState());
-                }
-            }
-        }
-        level.setBlockAndUpdate(base.offset(0, 2, 0), Blocks.LANTERN.defaultBlockState());
-        AABB box = new AABB(center.getX() - 48, center.getY() - 48, center.getZ() - 48,
-                center.getX() + 48, center.getY() + 48, center.getZ() + 48);
-        int golems = level.getEntitiesOfClass(IronGolem.class, box, IronGolem::isAlive).size();
-        int cap = Math.min(10, 2 + houses / 2);
-        if (golems < cap) {
-            spawnAt(level, base, EntityType.IRON_GOLEM, 3);
         }
     }
 

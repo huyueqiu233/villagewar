@@ -85,6 +85,8 @@ check('选势力后离开出生点', moved > 800, `移动 ${moved.toFixed(0)} �
 await exec('gamemode creative TestBot');
 const facOut = await exec('execute as TestBot run villagewar faction');
 check('势力被记录', /苍蓝/.test(facOut), facOut);
+const relock = await exec('execute as TestBot run villagewar join crimson');
+check('选过势力不能换', /选过就不能换|已经加入/.test(relock), relock);
 
 /* ---------- 掠夺者营地 ---------- */
 const campOut = await exec('/villagewar camp');

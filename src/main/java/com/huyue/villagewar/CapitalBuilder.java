@@ -141,19 +141,6 @@ public final class CapitalBuilder {
     }
 
     private static void placeFarm(Level level, BlockPos base) {
-        for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = -3; dz <= 3; dz++) {
-                BlockPos p = base.offset(dx, 0, dz);
-                level.setBlockAndUpdate(p, Blocks.FARMLAND.defaultBlockState());
-                if (dx == 0 || dz == 0) {
-                    level.setBlockAndUpdate(p, Blocks.WATER.defaultBlockState());
-                } else if (level.getBlockState(p).isAir()) {
-                    level.setBlockAndUpdate(p, Blocks.WHEAT.defaultBlockState()
-                            .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
-                }
-            }
-        }
-        level.setBlockAndUpdate(base.offset(-4, 1, -4), Blocks.LANTERN.defaultBlockState());
-        level.setBlockAndUpdate(base.offset(4, 1, 4), Blocks.LANTERN.defaultBlockState());
+        VillageGrowth.placeFarm(level, base);
     }
 }

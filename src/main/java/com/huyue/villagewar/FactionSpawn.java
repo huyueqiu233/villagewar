@@ -66,6 +66,7 @@ public final class FactionSpawn {
 
     public static void onServerStarted(ServerStartedEvent event) {
         ServerLevel overworld = event.getServer().overworld();
+        Faction.clearCapitalCache();
         // 先读存档，再登记首都村；反过来会被 load() 清空
         VillageGrowth.ensureLoaded(event.getServer());
         FactionStore.load(event.getServer());

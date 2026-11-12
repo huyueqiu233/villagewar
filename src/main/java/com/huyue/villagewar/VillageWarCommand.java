@@ -46,6 +46,11 @@ public final class VillageWarCommand {
                                 .executes(ctx -> {
                                     ServerPlayer player = ctx.getSource().getPlayerOrException();
                                     Faction faction = Faction.byId(StringArgumentType.getString(ctx, "faction"));
+                                    Faction current = FactionSpawn.factionOf(player);
+                                    if (current != null && current != faction) {
+                                        ctx.getSource().sendFailure(Component.literal("你已经加入 " + current.display + "，选过就不能换了"));
+                                        return 0;
+                                    }
                                     if (faction == null) {
                                         ctx.getSource().sendFailure(Component.literal("没有这个势力，可选：crimson / azure"));
                                         return 0;
