@@ -791,6 +791,124 @@ public final class VillageGrowth {
         placeOutdoorTorches(level, base, 4);
     }
 
+    /** 把一个建筑和村子中心用一条 3 格宽的石路连起来（跨水、跨沟也走得过去）。 */
+    private static void connectPath(Level level, BlockPos center, BlockPos target) {
+        int steps = Math.max(1, (int) Math.round(Math.sqrt(center.distSqr(target))));
+        int y = target.getY();
+        for (int i = 0; i <= steps; i++) {
+            double t = (double) i / steps;
+            int x = (int) Math.round(center.getX() + (target.getX() - center.getX()) * t);
+            int z = (int) Math.round(center.getZ() + (target.getZ() - center.getZ()) * t);
+            for (int w = -1; w <= 1; w++) {
+                BlockPos ground = new BlockPos(x + w, y - 1, z);
+                if (!level.getBlockState(ground).canOcclude() || !level.getBlockState(ground).getFluidState().isEmpty()) {
+                    level.setBlockAndUpdate(ground, Blocks.COARSE_DIRT.defaultBlockState());
+                }
+                for (int h = 0; h <= 2; h++) {
+                    BlockPos above = new BlockPos(x + w, y + h, z);
+                    if (!level.getBlockState(above).isAir()) {
+                        level.setBlockAndUpdate(above, Blocks.AIR.defaultBlockState());
+                    }
+                }
+            }
+        }
+    }
+
+    /** 建筑底下垫平：地基范围内不是实地就补土，防止房子半悬在水上。 */
+    private static void preparePad(Level level, BlockPos base, int radius) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                BlockPos ground = base.offset(dx, -1, dz);
+                boolean solid = level.getBlockState(ground).canOcclude() && level.getBlockState(ground).getFluidState().isEmpty();
+                if (!solid) {
+                    level.setBlockAndUpdate(ground, Blocks.DIRT.defaultBlockState());
+                }
+                for (int h = 0; h <= 2; h++) {
+                    BlockPos above = base.offset(dx, h, dz);
+                    if (!level.getBlockState(above).isAir()) {
+                        level.setBlockAndUpdate(above, Blocks.AIR.defaultBlockState());
+                    }
+                }
+            }
+        }
+    }
+
+    /** 村子外围一圈木栅栏（留四个门），灯笼点缀。 */
+    private static void placeWallRing(ServerLevel level, BlockPos center) {
+        int r = 18;
+        for (int d = -r; d <= r; d++) {
+            for (int sign : new int[]{-1, 1}) {
+                BlockPos a = center.offset(d, 0, sign * r);
+                BlockPos b = center.offset(sign * r, 0, d);
+                for (BlockPos p : new BlockPos[]{a, b}) {
+                    if (Math.abs(d) <= 1) {
+                        continue;
+                    }
+                    int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, p.getX(), p.getZ());
+                    level.setBlockAndUpdate(new BlockPos(p.getX(), y - 1, p.getZ()), Blocks.COBBLESTONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(p.getX(), y, p.getZ()), Blocks.OAK_FENCE.defaultBlockState());
+                    if ((d & 7) == 0) {
+                        level.setBlockAndUpdate(new BlockPos(p.getX(), y + 1, p.getZ()), Blocks.LANTERN.defaultBlockState());
+                    }
+                }
+            }
+        }
+    }
+
+    /** 瞭望塔：石砖塔身 + 顶部平台。 */
+    private static void placeWatchtower(ServerLevel level, BlockPos base) {
+        preparePad(level, base, 3);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.COBBLESTONE.defaultBlockState());
+            }
+        }
+        for (int y = 0; y <= 7; y++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                    if (edge) {
+                        level.setBlockAndUpdate(base.offset(dx, y, dz), Blocks.STONE_BRICKS.defaultBlockState());
+                    } else if (y == 7) {
+                        level.setBlockAndUpdate(base.offset(dx, y, dz), Blocks.SPRUCE_PLANKS.defaultBlockState());
+                    }
+                }
+            }
+        }
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                boolean edge = Math.abs(dx) == 3 || Math.abs(dz) == 3;
+                if (edge) {
+                    level.setBlockAndUpdate(base.offset(dx, 8, dz), Blocks.OAK_FENCE.defaultBlockState());
+                }
+            }
+        }
+        level.setBlockAndUpdate(base.offset(0, 8, 0), Blocks.LANTERN.defaultBlockState());
+    }
+
+    /** 守卫小屋：额外补铁傀儡（上限随房屋数）。 */
+    private static void placeGuardPost(ServerLevel level, BlockPos base, BlockPos center, int houses) {
+        preparePad(level, base, 3);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                boolean edge = Math.abs(dx) == 2 || Math.abs(dz) == 2;
+                level.setBlockAndUpdate(base.offset(dx, -1, dz), Blocks.COBBLESTONE.defaultBlockState());
+                if (edge) {
+                    level.setBlockAndUpdate(base.offset(dx, 0, dz), Blocks.STONE_BRICKS.defaultBlockState());
+                    level.setBlockAndUpdate(base.offset(dx, 1, dz), Blocks.STONE_BRICKS.defaultBlockState());
+                }
+            }
+        }
+        level.setBlockAndUpdate(base.offset(0, 2, 0), Blocks.LANTERN.defaultBlockState());
+        AABB box = new AABB(center.getX() - 48, center.getY() - 48, center.getZ() - 48,
+                center.getX() + 48, center.getY() + 48, center.getZ() + 48);
+        int golems = level.getEntitiesOfClass(IronGolem.class, box, IronGolem::isAlive).size();
+        int cap = Math.min(10, 2 + houses / 2);
+        if (golems < cap) {
+            spawnAt(level, base, EntityType.IRON_GOLEM, 3);
+        }
+    }
+
     /**
      * 农田（9x9）：中间一格水（含水上半砖），上面压堆肥桶，再上面压一个完整方块 + 两根火把。
      *
