@@ -32,7 +32,7 @@ public final class PillagerCamp {
     private static final Type TYPE = CampData.class;
 
     public static final int OFFSET_Z = 1500;
-    public static final int MAX_LEVEL = 5;
+    public static final int MAX_LEVEL = 8;
     private static final long GROW_INTERVAL_MS = 20 * 60 * 1000L;
     private static final long REBUILD_COOLDOWN_MS = 10 * 60 * 1000L;
 
@@ -51,6 +51,8 @@ public final class PillagerCamp {
         public int coreY = 0;
         public int coreZ = 0;
         public boolean built = false;
+        /** 营地被端掉后，重建时至少要到的等级（-1 表示不提升）。 */
+        public int pendingLevel = -1;
     }
 
     private static Path path(MinecraftServer server) {
@@ -104,6 +106,29 @@ public final class PillagerCamp {
         ensureBuilt(event.getServer());
     }
 
+    /** 救出笼子里的村民：给点数，村民自己往村里跑。 */
+    public static boolean onCageBroken(MinecraftServer server, BlockPos pos,
+            net.minecraft.world.entity.player.Player player) {
+        if (!data.built || core() == null) {
+            return false;
+        }
+        if (pos.distSqr(core()) > 30 * 30) {
+            return false;
+        }
+        if (!(player instanceof net.minecraft.server.level.ServerPlayer serverPlayer)) {
+            return false;
+        }
+        Faction faction = FactionSpawn.factionOf(serverPlayer);
+        if (faction == null) {
+            return false;
+        }
+        FactionPoints.add(faction, 40);
+        FactionPoints.saveIfDirty(server);
+        player.displayClientMessage(
+                net.minecraft.network.chat.Component.literal("救出了一个被掳的村民（+" + 40 + " 势力点数）"), false);
+        return true;
+    }
+
     public static void onBlockBreak(net.neoforged.neoforge.event.level.BlockEvent.BreakEvent event) {
         if (event.getLevel().isClientSide()) {
             return;
@@ -112,9 +137,23 @@ public final class PillagerCamp {
             return;
         }
         MinecraftServer server = serverLevel.getServer();
-        if (server != null && onCoreBroken(server, event.getPos())) {
-            event.getPlayer().displayClientMessage(
-                    net.minecraft.network.chat.Component.literal("掠夺者营地被端掉了！他们短时间内不会再重建"), false);
+        if (server == null) {
+            return;
+        }
+        if (event.getState().is(Blocks.IRON_BARS) && onCageBroken(server, event.getPos(), event.getPlayer())) {
+            return;
+        }
+        if (onCoreBroken(server, event.getPos())) {
+            int reward = 100 + data.pendingLevel * 25;
+            if (event.getPlayer() instanceof net.minecraft.server.level.ServerPlayer sp) {
+                Faction faction = FactionSpawn.factionOf(sp);
+                if (faction != null) {
+                    FactionPoints.add(faction, reward);
+                    FactionPoints.saveIfDirty(server);
+                    sp.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                            "掠夺者营地被端掉了！+" + reward + " 势力点数（用 /villagewar points 查看）"), false);
+                }
+            }
         }
     }
 
@@ -133,8 +172,16 @@ public final class PillagerCamp {
         data.coreY = center.getY() + 2;
         data.coreZ = center.getZ();
         data.lastGrowAt = System.currentTimeMillis();
+        if (data.pendingLevel > data.level) {
+            data.level = data.pendingLevel;
+        }
+        data.pendingLevel = -1;
         save(server);
         LOGGER.info("[villagewar] 掠夺者营地已建成 {}（等级 {}）", center, data.level);
+    }
+
+    private static int dyStep(int dz) {
+        return dz == 1 ? 1 : 2;
     }
 
     private static void build(ServerLevel level, BlockPos center) {
@@ -151,7 +198,9 @@ public final class PillagerCamp {
         for (int dx = -14; dx <= 14; dx++) {
             for (int dz = -14; dz <= 14; dz++) {
                 boolean edge = Math.abs(dx) == 14 || Math.abs(dz) == 14;
-                if (edge && (Math.abs(dx) + Math.abs(dz)) % 7 != 0) {
+                // 南面（dz=+14）留 3 格宽的门：这是营地唯一的入口，逼玩家先破门
+                boolean southGate = dz == 14 && Math.abs(dx) <= 1;
+                if (edge && !southGate && (Math.abs(dx) + Math.abs(dz)) % 7 != 0) {
                     level.setBlockAndUpdate(center.offset(dx, 0, dz), Blocks.DARK_OAK_FENCE.defaultBlockState());
                     level.setBlockAndUpdate(center.offset(dx, 1, dz), Blocks.DARK_OAK_FENCE.defaultBlockState());
                 }
@@ -185,6 +234,14 @@ public final class PillagerCamp {
                     level.setBlockAndUpdate(base.offset(dx, 1, dz), Blocks.IRON_BARS.defaultBlockState());
                 }
             }
+            // 被掳的村民（打碎铁栏杆就算救出）
+            var villager = net.minecraft.world.entity.EntityType.VILLAGER.create(level);
+            if (villager != null) {
+                villager.moveTo(base.getX() + 0.5, base.getY() + 1, base.getZ() + 0.5, 0.0F, 0.0F);
+                villager.setCustomName(net.minecraft.network.chat.Component.literal("被掳的村民"));
+                villager.setPersistenceRequired();
+                level.addFreshEntity(villager);
+            }
         }
         // 中心石台 + 战旗（核心）
         for (int dx = -2; dx <= 2; dx++) {
@@ -192,8 +249,14 @@ public final class PillagerCamp {
                 level.setBlockAndUpdate(center.offset(dx, 0, dz), Blocks.STONE_BRICKS.defaultBlockState());
             }
         }
-        level.setBlockAndUpdate(center.offset(0, 1, 0), Blocks.STONE_BRICK_WALL.defaultBlockState());
-        level.setBlockAndUpdate(center.offset(0, 2, 0), Blocks.MAGENTA_BANNER.defaultBlockState());
+        for (int dy = 1; dy <= 2; dy++) {
+            level.setBlockAndUpdate(center.offset(0, dy, 0), Blocks.STONE_BRICK_WALL.defaultBlockState());
+        }
+        level.setBlockAndUpdate(center.offset(0, 3, 0), Blocks.MAGENTA_BANNER.defaultBlockState());
+        // 台阶：让玩家能爬上去打旗
+        for (int dz = 1; dz <= 2; dz++) {
+            level.setBlockAndUpdate(center.offset(0, dyStep(dz), dz), Blocks.STONE_BRICKS.defaultBlockState());
+        }
         // 周围插火把
         for (int[] p : new int[][]{{-10, 0}, {10, 0}, {0, -10}, {0, 10}}) {
             level.setBlockAndUpdate(center.offset(p[0], 1, p[1]), Blocks.TORCH.defaultBlockState());
@@ -206,12 +269,14 @@ public final class PillagerCamp {
         if (core == null || !core.equals(pos)) {
             return false;
         }
-        data.level = 0;
+        int oldLevel = data.level;
         data.built = false;
         data.destroyedAt = System.currentTimeMillis();
         data.coreX = Integer.MIN_VALUE;
+        // 端掉一次，下次重建更狠：等级不归零，重建时 +1（封顶 MAX_LEVEL）
+        data.pendingLevel = Math.min(MAX_LEVEL, oldLevel + 1);
         save(server);
-        LOGGER.info("[villagewar] 掠夺者营地被端掉 {}", pos);
+        LOGGER.info("[villagewar] 掠夺者营地被端掉 {}（原等级 {}，下次重建 {} 级）", pos, oldLevel, data.pendingLevel);
         return true;
     }
 

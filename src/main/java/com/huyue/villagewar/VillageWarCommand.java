@@ -5,7 +5,12 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 /** `/villagewar status` 看状态；`/villagewar raid` 开一场袭击；`join <势力>` 选势力。 */
@@ -93,6 +98,79 @@ public final class VillageWarCommand {
                             ? "你还没选势力，打 /villagewar join"
                             : "你属于 " + faction.display), false);
                     return 1;
-                })));
+                }))
+                .then(Commands.literal("points").executes(ctx -> {
+                    ServerPlayer player = ctx.getSource().getPlayerOrException();
+                    Faction faction = FactionSpawn.factionOf(player);
+                    if (faction == null) {
+                        ctx.getSource().sendFailure(Component.literal("先选势力"));
+                        return 0;
+                    }
+                    ctx.getSource().sendSuccess(() -> Component.literal(
+                            faction.display + " 势力点数：" + FactionPoints.get(faction)
+                                    + "（打营地 +100 起、救村民 +40）").withStyle(faction.color), false);
+                    return 1;
+                }))
+                .then(Commands.literal("shop").executes(ctx -> {
+                    ctx.getSource().sendSuccess(() -> Component.literal(
+                            "可买：/villagewar buy rally（120 点，回满血+抗性 30 秒）"
+                                    + " · /villagewar buy golem（200 点，在附近放 2 只铁傀儡）"), false);
+                    return 1;
+                }))
+                .then(Commands.literal("buy")
+                        .then(Commands.literal("rally").executes(ctx -> buyRally(ctx.getSource())))
+                        .then(Commands.literal("golem").executes(ctx -> buyGolem(ctx.getSource())))));
+    }
+
+    private static int buyRally(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            Faction faction = FactionSpawn.factionOf(player);
+            if (faction == null) {
+                source.sendFailure(Component.literal("先选势力"));
+                return 0;
+            }
+            if (!FactionPoints.spend(faction, 120)) {
+                source.sendFailure(Component.literal("点数不够（需要 120，你现在 " + FactionPoints.get(faction) + "）"));
+                return 0;
+            }
+            FactionPoints.saveIfDirty(source.getServer());
+            player.setHealth(player.getMaxHealth());
+            player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, 30 * 20, 0));
+            player.displayClientMessage(Component.literal("战地补给：回满血 + 抗性 30 秒"), false);
+            return 1;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static int buyGolem(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            Faction faction = FactionSpawn.factionOf(player);
+            if (faction == null) {
+                source.sendFailure(Component.literal("先选势力"));
+                return 0;
+            }
+            if (!FactionPoints.spend(faction, 200)) {
+                source.sendFailure(Component.literal("点数不够（需要 200，你现在 " + FactionPoints.get(faction) + "）"));
+                return 0;
+            }
+            FactionPoints.saveIfDirty(source.getServer());
+            ServerLevel level = player.serverLevel();
+            BlockPos base = player.blockPosition().offset(2, 0, 0);
+            for (int i = 0; i < 2; i++) {
+                BlockPos p = base.offset(i * 2, 0, 0);
+                var golem = EntityType.IRON_GOLEM.create(level);
+                if (golem != null) {
+                    golem.moveTo(p.getX() + 0.5, p.getY(), p.getZ() + 0.5, 0.0F, 0.0F);
+                    level.addFreshEntity(golem);
+                }
+            }
+            player.displayClientMessage(Component.literal("两只铁傀儡听你调遣"), false);
+            return 1;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 }

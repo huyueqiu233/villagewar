@@ -87,6 +87,8 @@ const facOut = await exec('execute as TestBot run villagewar faction');
 check('势力被记录', /苍蓝/.test(facOut), facOut);
 const relock = await exec('execute as TestBot run villagewar join crimson');
 check('选过势力不能换', /选过就不能换|已经加入/.test(relock), relock);
+ const pts = await exec('execute as TestBot run villagewar points');
+ check('势力点数可用', /势力点数/.test(pts), pts);
 
 /* ---------- 掠夺者营地 ---------- */
 const campOut = await exec('/villagewar camp');
